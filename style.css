@@ -1088,7 +1088,7 @@ body {
 /* --- Final Toast Solution --- */
 .toast-final {
     position: fixed !important;
-    bottom: 100px !important;
+    bottom: 40px !important; /* PC 기본 위치 */
     left: 50% !important;
     transform: translateX(-50%) translateY(150%) !important;
     background: rgba(59, 130, 246, 0.98) !important;
@@ -1108,5 +1108,13 @@ body {
 .toast-final.show {
     transform: translateX(-50%) translateY(0) !important;
     opacity: 1 !important;
+}
+
+@media (max-width: 768px) {
+    .toast-final {
+        bottom: 120px !important; /* 모바일 하단 탭바 위로 훨씬 높게 배치 */
+        font-size: 0.85rem !important;
+        padding: 10px 20px !important;
+    }
 }
 
