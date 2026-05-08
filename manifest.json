@@ -1,0 +1,17 @@
+{
+  "name": "Quest Master",
+  "short_name": "QuestMaster",
+  "description": "게이머를 위한 숙제 체크 프로그램",
+  "start_url": "index.html",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#6366f1",
+  "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/3204/3204342.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

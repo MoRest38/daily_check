@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quest Master | 게임 숙제 체크</title>
+    
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&family=Noto+Sans+KR:wght@300;400;700&display=swap" rel="stylesheet">
+    
+    <!-- Styles -->
+    <link rel="stylesheet" href="style.css">
+    
+    <!-- Firebase -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+    
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <meta name="theme-color" content="#0f172a">
+</head>
+<body class="dark-theme">
+    <div id="app">
+        <!-- Error Toast -->
+        <div id="error-toast" style="display: none; position: fixed; bottom: 20px; right: 20px; background: rgba(239, 68, 68, 0.9); color: white; padding: 1rem 1.5rem; border-radius: 8px; z-index: 9999; font-weight: 600; box-shadow: 0 4px 12px rgba(0,0,0,0.3); backdrop-filter: blur(10px);"></div>
+
+        <!-- Sidebar -->
+        <nav class="sidebar">
+            <div class="logo">
+                <i data-lucide="layout-grid" class="logo-icon"></i>
+                <span class="logo-text">QuestMaster</span>
+            </div>
+            <div class="nav-links">
+                <button class="nav-item active" id="nav-dashboard">
+                    <i data-lucide="layout-dashboard"></i>
+                    <span>대시보드</span>
+                </button>
+                <button class="nav-item" id="nav-games">
+                    <i data-lucide="users"></i>
+                    <span>게임 관리</span>
+                </button>
+                <button class="nav-item" id="nav-calendar">
+                    <i data-lucide="calendar"></i>
+                    <span>기록 달력</span>
+                </button>
+                <button class="nav-item" id="nav-settings">
+                    <i data-lucide="settings"></i>
+                    <span>데이터 관리</span>
+                </button>
+            </div>
+            <div class="user-profile" id="user-section">
+                <!-- Login UI here -->
+            </div>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="content">
+            <header class="top-bar">
+                <div class="header-info">
+                    <h1 id="page-title">오늘의 숙제</h1>
+                    <p id="current-date">로딩 중...</p>
+                </div>
+                <div class="header-actions">
+                    <div class="filter-group">
+                        <select id="game-filter" class="glass-select">
+                            <option value="전체">모든 게임</option>
+                        </select>
+                    </div>
+                    <button class="btn btn-primary" id="add-quest-btn">
+                        <i data-lucide="plus"></i>
+                        <span>숙제 추가</span>
+                    </button>
+                </div>
+            </header>
+
+            <section id="dashboard-view">
+                <div class="stats-grid">
+                    <div class="stat-card glass">
+                        <div class="stat-header"><span>전체 진행률</span><i data-lucide="trending-up"></i></div>
+                        <div class="stat-value" id="stat-percent">0%</div>
+                        <div class="progress-bar"><div class="progress-fill" id="stat-fill" style="width: 0%"></div></div>
+                    </div>
+                    <div class="stat-card glass">
+                        <div class="stat-header"><span>남은 숙제</span><i data-lucide="list-todo" class="text-yellow"></i></div>
+                        <div class="stat-value" id="stat-remains">0</div>
+                    </div>
+                </div>
+
+                <div class="quest-section">
+                    <div class="section-header"><h2>일일 숙제</h2><span class="badge">DAILY</span></div>
+                    <div class="quest-grid" id="daily-quest-list"></div>
+                </div>
+
+                <div class="quest-section">
+                    <div class="section-header"><h2>주간 숙제</h2><span class="badge badge-weekly">WEEKLY</span></div>
+                    <div class="quest-grid" id="weekly-quest-list"></div>
+                </div>
+            </section>
+
+            <!-- Calendar View (Hidden by default) -->
+            <section id="calendar-view" class="view hidden">
+                <div class="calendar-container glass">
+                    <div class="calendar-header">
+                        <button class="btn-icon" id="prev-month"><i data-lucide="chevron-left"></i></button>
+                        <h2 id="calendar-month-year">2026년 5월</h2>
+                        <button class="btn-icon" id="next-month"><i data-lucide="chevron-right"></i></button>
+                    </div>
+                    <div class="calendar-grid-header">
+                        <span>일</span><span>월</span><span>화</span><span>수</span><span>목</span><span>금</span><span>토</span>
+                    </div>
+                    <div class="calendar-grid" id="calendar-grid"></div>
+                </div>
+                
+                <div class="history-detail glass hidden" id="history-detail">
+                    <div class="history-header">
+                        <h3 id="history-date">2026-05-08 기록</h3>
+                        <span class="badge" id="history-percent">100%</span>
+                    </div>
+                    <div class="history-list" id="history-list">
+                        <!-- History items injected here -->
+                    </div>
+                </div>
+            </section>
+
+            <!-- Games View -->
+            <section id="games-view" class="hidden">
+                <div class="section-header">
+                    <h2>게임 관리</h2>
+                    <button class="btn btn-primary btn-sm" id="btn-add-game">
+                        <i data-lucide="plus"></i> 게임 추가
+                    </button>
+                </div>
+                <div class="character-grid" id="game-list">
+                    <!-- Game cards injected here -->
+                </div>
+            </section>
+
+            <section id="settings-view" class="hidden">
+                <div class="section-header"><h2>데이터 관리</h2></div>
+                <div class="stats-grid">
+                    <div class="stat-card glass warning-card" style="border-color: rgba(239, 68, 68, 0.3); grid-column: span 2;">
+                        <div class="stat-header" style="color: #ef4444"><span>전체 초기화</span><i data-lucide="alert-triangle"></i></div>
+                        <p style="font-size: 0.85rem; color: var(--text-dim); margin-bottom: 1rem;">모든 숙제 정보와 히스토리를 영구 삭제합니다.</p>
+                        <button class="btn btn-danger" id="btn-clear-all" style="width: 100%">전체 데이터 삭제</button>
+                    </div>
+                </div>
+
+                <div class="quest-section" style="margin-top: 2rem;">
+                    <div class="section-header">
+                        <h2>데이터 파일 관리</h2>
+                    </div>
+                    <div class="stats-grid">
+                        <div class="stat-card glass">
+                            <div class="stat-header"><span>파일로 내보내기</span><i data-lucide="upload"></i></div>
+                            <p style="font-size: 0.8rem; color: var(--text-dim); margin-bottom: 1rem;">현재 데이터를 .json 파일로 저장합니다.</p>
+                            <button class="btn btn-primary" id="btn-export-json" style="width: 100%">파일 저장 (.json)</button>
+                        </div>
+                        <div class="stat-card glass">
+                            <div class="stat-header"><span>파일에서 가져오기</span><i data-lucide="download"></i></div>
+                            <p style="font-size: 0.8rem; color: var(--text-dim); margin-bottom: 1rem;">저장된 .json 파일을 불러옵니다.</p>
+                            <input type="file" id="input-import-json" style="display: none;" accept=".json">
+                            <button class="btn btn-primary" id="btn-import-trigger" style="width: 100%">파일 선택</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="quest-section" style="margin-top: 2rem;">
+                    <div class="section-header">
+                        <h2>데이터 백업 (최대 10개)</h2>
+                        <button class="btn btn-primary" id="btn-backup-now">
+                            <i data-lucide="download"></i><span>현재 상태 백업</span>
+                        </button>
+                    </div>
+                    <div class="quest-grid" id="backup-list">
+                        <!-- 백업 목록 주입 -->
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Error Toast (Debug용) -->
+    <div id="error-toast" style="position: fixed; bottom: 20px; right: 20px; background: #f43f5e; color: white; padding: 1rem; border-radius: 8px; display: none; z-index: 9999;"></div>
+
+    <!-- Modals -->
+    <div id="modal-container" class="modal-overlay hidden">
+        <div class="modal glass">
+            <div class="modal-header">
+                <h3 id="modal-title">숙제 추가</h3>
+                <button class="close-btn" id="close-modal">
+                    <i data-lucide="x"></i>
+                </button>
+            </div>
+            <div class="modal-body"></div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
