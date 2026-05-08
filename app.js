@@ -98,24 +98,32 @@ function logout() {
 
 function updateUserUI() {
     const section = document.getElementById('user-section');
-    if (!section) return;
-    if (state.user) {
-        section.innerHTML = `
-            <div style="display:flex; align-items:center; gap:10px; padding:10px; background:rgba(255,255,255,0.05); border-radius:12px;">
-                <img src="${state.user.photoURL}" style="width: 32px; height: 32px; border-radius: 50%; border: 2px solid var(--primary);">
-                <div style="flex: 1; font-size: 11px; overflow:hidden;">
-                    <div style="font-weight: 700; white-space:nowrap; text-overflow:ellipsis; overflow:hidden;">${state.user.displayName}</div>
-                    <button onclick="logout()" style="background:none; border:none; color:var(--text-dim); padding:0; cursor:pointer; font-size:10px;">Cloud Logout</button>
-                </div>
+    const headerSection = document.getElementById('header-user-section');
+    if (!section || !headerSection) return;
+
+    const userHtml = state.user ? `
+        <div style="display:flex; align-items:center; gap:10px; padding:10px; background:rgba(255,255,255,0.05); border-radius:12px;">
+            <img src="${state.user.photoURL}" style="width: 32px; height: 32px; border-radius: 50%; border: 2px solid var(--primary);">
+            <div style="flex: 1; font-size: 11px; overflow:hidden;">
+                <div style="font-weight: 700; white-space:nowrap; text-overflow:ellipsis; overflow:hidden;">${state.user.displayName}</div>
+                <button onclick="logout()" style="background:none; border:none; color:var(--text-dim); padding:0; cursor:pointer; font-size:10px;">Cloud Logout</button>
             </div>
-        `;
-    } else {
-        section.innerHTML = `
-            <button class="btn btn-primary" onclick="login()" style="width: 100%; display:flex; align-items:center; justify-content:center; gap:8px;">
-                <i data-lucide="cloud"></i> Cloud Sync
-            </button>
-        `;
-    }
+        </div>
+    ` : `
+        <button class="btn btn-primary" onclick="login()" style="width: 100%; display:flex; align-items:center; justify-content:center; gap:8px;">
+            <i data-lucide="cloud"></i> Cloud Sync
+        </button>
+    `;
+
+    const headerUserHtml = state.user ? `
+        <img src="${state.user.photoURL}" onclick="state.currentView='settings'; render();" style="width: 32px; height: 32px; border-radius: 50%; border: 2px solid var(--primary); cursor:pointer;">
+    ` : `
+        <button class="btn btn-primary btn-sm" onclick="login()"><i data-lucide="log-in"></i></button>
+    `;
+
+    section.innerHTML = userHtml;
+    headerSection.innerHTML = headerUserHtml;
+    
     if (window.lucide) lucide.createIcons();
 }
 
@@ -504,6 +512,16 @@ function renderSettings() {
     
     view.innerHTML = `
         <div class="section-header"><h2>데이터 관리</h2></div>
+        <main class="main-content">
+            <header class="top-header">
+                <div class="mobile-logo">
+                    <i data-lucide="layout-grid"></i>
+                    <span class="logo-text">Quest Master</span>
+                </div>
+                <div class="header-user-section" id="header-user-section">
+                    <!-- Mobile Login UI -->
+                </div>
+            </header>
         <div class="settings-container">
             <!-- 일반 설정 -->
             <div class="settings-card">
