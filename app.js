@@ -267,8 +267,11 @@ function syncQuestsToHistoryFromDate(startDateStr) {
                 }
             });
             
-            // 삭제된 숙제 정리 (마스터 리스트에 없는 숙제 제거)
-            h.quests = h.quests.filter(hq => state.quests.some(mq => mq.id === hq.id));
+            // 삭제되었거나, 해당 날짜에 더 이상 활성화되지 않는 숙제 정리 (날짜 안 맞는 일회성 등)
+            h.quests = h.quests.filter(hq => {
+                const mq = state.quests.find(x => x.id === hq.id);
+                return mq && isQuestActiveOnDate(mq, dateStr);
+            });
             h.percent = calculatePercent(h.quests);
         }
     });
