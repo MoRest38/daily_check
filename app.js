@@ -25,7 +25,8 @@ let state = {
     currentView: 'dashboard',
     calendarDate: new Date(),
     backups: [],
-    appTitle: 'Quest Master'
+    appTitle: 'Quest Master',
+    notes: ''
 };
 
 const DEFAULT_CONFIG = {
@@ -155,7 +156,13 @@ function setupRealtimeSync() {
                 };
                 
                 // 클라우드 데이터를 받자마자 즉시 전수 조사(청소) 실시
-                syncQuestsToHistoryFromDate();
+                const cleaned = syncQuestsToHistoryFromDate();
+                
+                // 만약 청소된 내용이 있다면 서버에도 즉시 반영하여 '부활' 방지
+                if (cleaned) {
+                    console.log("History cleaned. Syncing back to server...");
+                    save(true); // 동기화 액션으로 저장하여 알림 방지
+                }
                 
                 // 로컬 스토리지 업데이트
                 localStorage.setItem(getStorageKey(), JSON.stringify(toSync));
@@ -254,13 +261,14 @@ function updateHistoryToday() {
  * (과거 날짜로 숙제를 추가했을 때 기존 히스토리 스냅샷에 반영하기 위함)
  */
 function syncQuestsToHistoryFromDate(startDateStr = null) {
+    let hasChanged = false;
     Object.keys(state.history).forEach(dateStr => {
-        // startDateStr이 없으면 전체 청소, 있으면 해당 날짜 이후만 청소
         if (!startDateStr || dateStr >= startDateStr) {
             const h = state.history[dateStr];
+            const oldLen = h.quests.length;
+            
             const applicable = state.quests.filter(q => isQuestActiveOnDate(q, dateStr));
             
-            // 신규/수정 반영
             applicable.forEach(q => {
                 const exists = h.quests.find(hq => hq.id === q.id);
                 if (!exists) {
@@ -268,36 +276,50 @@ function syncQuestsToHistoryFromDate(startDateStr = null) {
                         id: q.id, title: q.title, game: q.game, 
                         completed: isCompletedInCycle(q, dateStr) 
                     });
+                    hasChanged = true;
                 } else {
-                    exists.completed = isCompletedInCycle(q, dateStr);
-                    exists.title = q.title;
-                    exists.game = q.game;
+                    if (exists.title !== q.title || exists.game !== q.game) {
+                        exists.title = q.title;
+                        exists.game = q.game;
+                        hasChanged = true;
+                    }
+                    const comp = isCompletedInCycle(q, dateStr);
+                    if (exists.completed !== comp) {
+                        exists.completed = comp;
+                        hasChanged = true;
+                    }
                 }
             });
             
-            // 삭제되었거나, 해당 날짜에 활성화되지 않는 숙제 청소
             h.quests = h.quests.filter(hq => {
                 const mq = state.quests.find(x => x.id === hq.id);
-                return mq && isQuestActiveOnDate(mq, dateStr);
+                const keep = mq && isQuestActiveOnDate(mq, dateStr);
+                if (!keep) hasChanged = true;
+                return keep;
             });
 
-            // 숙제가 하나도 없는 히스토리 날짜는 아예 삭제하여 달력을 깨끗하게 함
             if (h.quests.length === 0) {
                 delete state.history[dateStr];
+                hasChanged = true;
             } else {
-                h.percent = calculatePercent(h.quests);
+                const newPercent = calculatePercent(h.quests);
+                if (h.percent !== newPercent) {
+                    h.percent = newPercent;
+                    hasChanged = true;
+                }
             }
         }
     });
+    return hasChanged;
 }
 
 function isQuestActiveOnDate(q, dateStr) {
-    if (!q.createdAt) return true;
+    // 생성일이 없는 아주 오래된 숙제는 오늘 날짜를 기본값으로 부여하여 유령화를 방지합니다.
+    const createdAt = q.createdAt || getTodayStr();
     if (q.type === 'once') {
-        // 일회성 숙제는 오직 '등록한 그 날짜'에만 활성화됩니다.
-        return q.createdAt === dateStr;
+        return createdAt === dateStr;
     }
-    return q.createdAt <= dateStr;
+    return createdAt <= dateStr;
 }
 
 function calculatePercent(quests) {
@@ -499,7 +521,7 @@ function render() {
         if (logo) logo.textContent = state.appTitle || 'Quest Master';
         document.title = state.appTitle || 'Quest Master';
 
-        const views = ['dashboard', 'calendar', 'games', 'settings'];
+        const views = ['dashboard', 'calendar', 'games', 'notes', 'settings'];
         views.forEach(v => {
             const btn = document.getElementById(`nav-${v}`);
             const mobileBtn = document.querySelector(`.mobile-bottom-nav [data-action="nav-${v}"]`);
@@ -513,6 +535,7 @@ function render() {
         if (state.currentView === 'dashboard') renderDashboard();
         else if (state.currentView === 'calendar') renderCalendar();
         else if (state.currentView === 'games') renderGames();
+        else if (state.currentView === 'notes') renderNotes();
         else if (state.currentView === 'settings') renderSettings();
 
         updateStats();
@@ -562,6 +585,30 @@ function renderDashboard() {
         else weekly.appendChild(card);
     });
     if (filteredQuests.length === 0) daily.innerHTML = '<p class="empty-msg">기록이 없습니다.</p>';
+}
+
+function renderNotes() {
+    const textarea = document.getElementById('notes-textarea');
+    if (textarea) {
+        textarea.value = state.notes || '';
+        
+        // 중복 리스너 방지를 위해 한 번만 등록
+        if (!textarea.dataset.listener) {
+            textarea.addEventListener('input', (e) => {
+                state.notes = e.target.value;
+                const status = document.getElementById('note-status');
+                if (status) status.textContent = '저장 중...';
+                
+                // 디바운싱: 500ms 후 저장
+                clearTimeout(textarea.timer);
+                textarea.timer = setTimeout(() => {
+                    save();
+                    if (status) status.textContent = '자동 저장됨';
+                }, 500);
+            });
+            textarea.dataset.listener = "true";
+        }
+    }
 }
 
 function renderSettings() {

@@ -91,6 +91,10 @@
                     <i data-lucide="calendar"></i>
                     <span>기록 달력</span>
                 </button>
+                <button class="nav-item" id="nav-notes">
+                    <i data-lucide="sticky-note"></i>
+                    <span>메모장</span>
+                </button>
                 <button class="nav-item" id="nav-settings">
                     <i data-lucide="settings"></i>
                     <span>데이터 관리</span>
@@ -194,6 +198,17 @@
                 </div>
             </section>
 
+            <!-- Notes View -->
+            <section id="notes-view" class="hidden">
+                <div class="section-header">
+                    <h2>메모장</h2>
+                    <span class="badge" id="note-status">자동 저장됨</span>
+                </div>
+                <div class="notes-container glass">
+                    <textarea id="notes-textarea" placeholder="여기에 중요한 메모를 남겨보세요... (실시간으로 동기화됩니다)" spellcheck="false"></textarea>
+                </div>
+            </section>
+
             <section id="settings-view" class="hidden">
                 <div class="section-header"><h2>데이터 관리</h2></div>
                 <div class="stats-grid">
@@ -253,6 +268,10 @@
         <button class="nav-item" data-action="nav-games">
             <i data-lucide="gamepad-2"></i>
             <span>게임</span>
+        </button>
+        <button class="nav-item" data-action="nav-notes">
+            <i data-lucide="sticky-note"></i>
+            <span>메모</span>
         </button>
         <button class="nav-item" data-action="nav-settings">
             <i data-lucide="settings"></i>
