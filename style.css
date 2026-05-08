@@ -1112,9 +1112,15 @@ body {
 
 @media (max-width: 768px) {
     .toast-final {
-        bottom: 120px !important; /* 모바일 하단 탭바 위로 훨씬 높게 배치 */
-        font-size: 0.85rem !important;
-        padding: 10px 20px !important;
+        top: 20px !important; /* 모바일에서는 아예 화면 위쪽에 표시 */
+        bottom: auto !important;
+        transform: translateX(-50%) translateY(-150%) !important;
+        font-size: 0.9rem !important;
+        padding: 12px 24px !important;
+        background: #3b82f6 !important; /* 밝은 파란색으로 고정 */
+    }
+    .toast-final.show {
+        transform: translateX(-50%) translateY(0) !important;
     }
 }
 
