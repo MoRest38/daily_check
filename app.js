@@ -176,7 +176,7 @@ function loadLocal() {
 
 function saveLocal() { 
     try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); 
+        localStorage.setItem(getStorageKey(), JSON.stringify(state)); 
     } catch (e) { }
 }
 
