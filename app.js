@@ -525,8 +525,11 @@ function isSameWeek(d1, d2) {
 // --- 6. Rendering ---
 function render() {
     try {
-        const logo = document.querySelector('.logo-text');
-        if (logo) logo.textContent = state.appTitle || 'Quest Master';
+        // 모든 로고 텍스트 업데이트 (사이드바, 모바일 헤더 등 전체)
+        const logos = document.querySelectorAll('.logo-text');
+        logos.forEach(logo => {
+            logo.textContent = state.appTitle || 'Quest Master';
+        });
         document.title = state.appTitle || 'Quest Master';
 
         const views = ['dashboard', 'calendar', 'games', 'notes', 'settings'];
