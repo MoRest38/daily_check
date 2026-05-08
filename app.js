@@ -65,12 +65,11 @@ function initFirebase() {
         firebase.auth().onAuthStateChanged(async (user) => {
             if (user) {
                 state.user = user;
-                loadLocal(); // 유저별 데이터 로드
-                setupRealtimeSync(); // 실시간 동기화 시작
-                checkResets(); // 데이터 로드 후 리셋 확인 필수
+                loadLocal(); // 로컬 먼저 로드
+                setupRealtimeSync(); // 클라우드 실시간 감시 시작 (여기서 최신 데이터면 즉시 덮어씀)
+                checkResets(); 
             } else {
-                if (unsubscribeSync) unsubscribeSync(); // 리스너 해제
-                // 로그아웃 시 데이터 초기화
+                if (unsubscribeSync) unsubscribeSync();
                 state.user = null;
                 state.quests = [];
                 state.history = {};
@@ -151,13 +150,13 @@ function setupRealtimeSync() {
                     ...toSync,
                     backups: cloud.backups || state.backups 
                 };
-                // 로컬 스토리지 양쪽(데이터 및 백업) 모두 저장
+                // 로컬 스토리지 업데이트
                 localStorage.setItem(getStorageKey(), JSON.stringify(toSync));
                 localStorage.setItem(getBackupKey(), JSON.stringify(state.backups));
-                render();
                 
+                render();
                 const syncTime = new Date(cloud.updatedAt).toLocaleTimeString('ko-KR');
-                showToast(`클라우드 동기화 완료 (${syncTime})`, "info");
+                showToast(`클라우드 최신 데이터 동기화 (${syncTime})`, "info");
             }
         }
     }, err => {
@@ -334,9 +333,14 @@ function showToast(msg, type = "error") {
     const toast = document.getElementById('error-toast');
     if (toast) {
         toast.textContent = msg;
-        toast.style.background = type === "info" ? "rgba(59, 130, 246, 0.9)" : "rgba(239, 68, 68, 0.9)";
+        toast.style.background = type === "info" ? "rgba(59, 130, 246, 0.95)" : "rgba(239, 68, 68, 0.95)";
+        toast.style.display = 'block'; 
         toast.classList.remove('hidden');
-        setTimeout(() => toast.classList.add('hidden'), 3000);
+        
+        setTimeout(() => {
+            toast.classList.add('hidden');
+            setTimeout(() => { if (toast) toast.style.display = 'none'; }, 300);
+        }, 3000);
     }
 }
 
