@@ -99,7 +99,6 @@ function logout() {
 function updateUserUI() {
     const section = document.getElementById('user-section');
     const headerSection = document.getElementById('header-user-section');
-    if (!section || !headerSection) return;
 
     const userHtml = state.user ? `
         <div style="display:flex; align-items:center; gap:10px; padding:10px; background:rgba(255,255,255,0.05); border-radius:12px;">
@@ -118,11 +117,13 @@ function updateUserUI() {
     const headerUserHtml = state.user ? `
         <img src="${state.user.photoURL}" onclick="state.currentView='settings'; render();" style="width: 32px; height: 32px; border-radius: 50%; border: 2px solid var(--primary); cursor:pointer;">
     ` : `
-        <button class="btn btn-primary btn-sm" onclick="login()"><i data-lucide="log-in"></i></button>
+        <button class="btn btn-primary" onclick="login()" style="padding: 5px 10px; border-radius: 8px; display: flex; align-items: center; justify-content: center;">
+            <i data-lucide="log-in" style="width: 18px; height: 18px;"></i>
+        </button>
     `;
 
-    section.innerHTML = userHtml;
-    headerSection.innerHTML = headerUserHtml;
+    if (section) section.innerHTML = userHtml;
+    if (headerSection) headerSection.innerHTML = headerUserHtml;
     
     if (window.lucide) lucide.createIcons();
 }

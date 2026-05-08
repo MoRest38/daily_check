@@ -60,16 +60,16 @@ body {
     z-index: 100;
 }
 
-.top-header {
+.mobile-top-header {
     display: none;
-    padding: 1rem 1.5rem;
+    padding: 1rem;
     background: var(--bg-card);
     border-bottom: 1px solid var(--border);
     justify-content: space-between;
     align-items: center;
     position: sticky;
     top: 0;
-    z-index: 100;
+    z-index: 1000;
 }
 
 .mobile-logo {
@@ -77,12 +77,7 @@ body {
     align-items: center;
     gap: 0.8rem;
     color: var(--primary);
-}
-
-.header-user-section {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
+    font-weight: 700;
 }
 
 .logo {
@@ -971,4 +966,15 @@ body {
 
 .danger-zone h3 {
     color: #f87171;
+}
+
+/* --- Responsive Design --- */
+@media (max-width: 768px) {
+    .sidebar { display: none; }
+    .mobile-top-header { display: flex; }
+    .content { padding: 1rem; padding-top: 0; }
+    .top-bar { flex-direction: column; align-items: flex-start; gap: 1rem; margin-bottom: 1.5rem; }
+    .header-info h1 { font-size: 1.8rem; }
+    .stats-grid { grid-template-columns: 1fr; }
+    .modal { width: 95%; }
 }
