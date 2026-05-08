@@ -324,6 +324,9 @@ function isQuestActiveOnDate(q, dateStr) {
     }
     if (!createdAt) createdAt = getTodayStr();
 
+    // 종료일 체크: endDate가 있으면 그 날짜 이후엔 비활성화
+    if (q.endDate && dateStr > q.endDate) return false;
+
     if (q.type === 'once') {
         return createdAt === dateStr;
     }
@@ -598,7 +601,131 @@ function renderDashboard() {
     if (filteredQuests.length === 0) daily.innerHTML = '<p class="empty-msg">기록이 없습니다.</p>';
 }
 
-function renderNotes() {
+function renderCalendar() {
+    const grid = document.getElementById('calendar-grid');
+    const monthYear = document.getElementById('calendar-month-year');
+    if (!grid || !monthYear) return;
+
+    const year = state.calendarDate.getFullYear();
+    const month = state.calendarDate.getMonth();
+    monthYear.textContent = `${year}년 ${month + 1}월`;
+
+    const firstDay = new Date(year, month, 1).getDay();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const todayStr = getTodayStr();
+
+    grid.innerHTML = '';
+    for (let i = 0; i < firstDay; i++) {
+        const cell = document.createElement('div');
+        cell.className = 'day-cell empty';
+        grid.appendChild(cell);
+    }
+    
+    for (let d = 1; d <= daysInMonth; d++) {
+        const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+        const history = state.history[dateStr];
+        const activeQuests = state.quests.filter(q => isQuestActiveOnDate(q, dateStr));
+        const isToday = dateStr === todayStr;
+        
+        const cell = document.createElement('div');
+        cell.className = 'day-cell';
+        if (isToday) cell.classList.add('today');
+        
+        let percent = 0;
+        let displayQuests = [];
+
+        if (history) {
+            percent = history.percent;
+            displayQuests = history.quests;
+        } else if (activeQuests.length > 0) {
+            const done = activeQuests.filter(q => isCompletedInCycle(q, dateStr)).length;
+            percent = Math.round((done / activeQuests.length) * 100);
+            displayQuests = activeQuests;
+        }
+
+        if (displayQuests.length > 0) {
+            cell.classList.add('has-data');
+            if (percent === 100) cell.classList.add('perfect');
+            else if (percent > 0) cell.classList.add('in-progress');
+            else cell.classList.add('has-data-pending');
+        }
+        
+        cell.innerHTML = `<span>${d}</span>`;
+        cell.onclick = () => showHistoryDetail(dateStr);
+        grid.appendChild(cell);
+    }
+
+    // 통계 그래프 렌더링
+    renderStats();
+    if (window.lucide) lucide.createIcons();
+}
+
+function renderStats() {
+    const chart = document.getElementById('bar-chart');
+    const labels = document.getElementById('bar-chart-labels');
+    if (!chart || !labels) return;
+
+    // 최근 30일 날짜 배열 생성
+    const days = [];
+    for (let i = 29; i >= 0; i--) {
+        const d = new Date();
+        d.setDate(d.getDate() - i);
+        days.push(d.toISOString().split('T')[0]);
+    }
+
+    // 통계 계산
+    const percentages = days.map(d => (state.history[d] ? state.history[d].percent : 0));
+    const daysWithData = percentages.filter(p => p > 0);
+    const avg = daysWithData.length > 0
+        ? Math.round(daysWithData.reduce((a, b) => a + b, 0) / daysWithData.length)
+        : 0;
+    const best = daysWithData.length > 0 ? Math.max(...daysWithData) : 0;
+
+    // 연속 달성 계산 (오늘부터 거꾸로)
+    let streak = 0;
+    for (let i = days.length - 1; i >= 0; i--) {
+        if (percentages[i] >= 100) streak++;
+        else break;
+    }
+
+    // 요약 카드 업데이트
+    const avgEl = document.getElementById('stat-avg');
+    const streakEl = document.getElementById('stat-streak');
+    const bestEl = document.getElementById('stat-best');
+    if (avgEl) avgEl.textContent = `${avg}%`;
+    if (streakEl) streakEl.textContent = `${streak}일`;
+    if (bestEl) bestEl.textContent = `${best}%`;
+
+    // 막대 그래프 렌더링
+    chart.innerHTML = days.map((dateStr, i) => {
+        const pct = percentages[i];
+        const height = Math.max(pct, 2); // 최소 2px 높이
+        let barColor = 'var(--primary)';
+        if (pct >= 100) barColor = '#10b981'; // 초록
+        else if (pct >= 50) barColor = '#3b82f6'; // 파랑
+        else if (pct > 0) barColor = '#f59e0b'; // 노랑
+        else barColor = 'rgba(255,255,255,0.08)'; // 투명
+
+        return `<div class="bar-item" title="${dateStr}: ${pct}%">
+            <div class="bar-fill" style="height:${height}%; background:${barColor};" data-pct="${pct}"></div>
+        </div>`;
+    }).join('');
+
+    // 날짜 레이블 (7일 간격)
+    labels.innerHTML = days.map((dateStr, i) => {
+        if (i % 7 === 0) {
+            const parts = dateStr.split('-');
+            return `<span class="bar-label">${parseInt(parts[1])}/${parseInt(parts[2])}</span>`;
+        }
+        return `<span class="bar-label-empty"></span>`;
+    }).join('');
+}
+
+function showHistoryDetail(dateStr) {
+    const detail = document.getElementById('history-detail');
+    const dateTitle = document.getElementById('history-date');
+    const percentBadge = document.getElementById('history-percent');
+    const list = document.getElementById('history-list');
     const textarea = document.getElementById('notes-textarea');
     if (textarea) {
         textarea.value = state.notes || '';
@@ -790,53 +917,6 @@ function getDaysUntilReset(q) {
     return -1;
 }
 
-function renderCalendar() {
-    const grid = document.getElementById('calendar-grid');
-    const title = document.getElementById('calendar-month-year');
-    if (!grid || !title) return;
-    
-    const year = state.calendarDate.getFullYear();
-    const month = state.calendarDate.getMonth();
-    title.textContent = `${year}년 ${month + 1}월`;
-    const firstDay = new Date(year, month, 1).getDay();
-    const lastDate = new Date(year, month + 1, 0).getDate();
-    grid.innerHTML = '';
-    for (let i = 0; i < firstDay; i++) grid.appendChild(document.createElement('div')).className = 'day-cell empty';
-    const todayStr = getTodayStr();
-    for (let d = 1; d <= lastDate; d++) {
-        const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-        const history = state.history[dateStr];
-        const activeQuests = state.quests.filter(q => isQuestActiveOnDate(q, dateStr));
-        
-        const cell = document.createElement('div');
-        cell.className = 'day-cell';
-        if (dateStr === todayStr) cell.classList.add('today');
-        
-        let percent = 0;
-        let displayQuests = [];
-
-        if (history) {
-            percent = history.percent;
-            displayQuests = history.quests;
-        } else if (activeQuests.length > 0) {
-            // 기록은 없지만 숙제가 있는 경우 가상 진척도 계산
-            const done = activeQuests.filter(q => isCompletedInCycle(q, dateStr)).length;
-            percent = Math.round((done / activeQuests.length) * 100);
-            displayQuests = activeQuests;
-        }
-
-        if (displayQuests.length > 0) {
-            cell.classList.add('has-data');
-            if (percent === 100) cell.classList.add('perfect');
-            else if (percent > 0) cell.classList.add('in-progress');
-            else cell.classList.add('has-data-pending');
-        }
-        
-        cell.innerHTML = `<span>${d}</span>`;
-        cell.onclick = () => showHistoryDetail(dateStr);
-        grid.appendChild(cell);
-    }
-}
 
 function showHistoryDetail(dateStr) {
     const detail = document.getElementById('history-detail');
@@ -858,8 +938,21 @@ function showHistoryDetail(dateStr) {
     
     const h = state.history[dateStr];
     h.percent = calculatePercent(h.quests);
-    const addBtnHtml = `<button class="btn btn-primary" style="padding: 0.4rem 0.8rem; font-size: 0.8rem; margin-right: 10px;" onclick="renderForm('${dateStr}'); document.getElementById('modal-container').classList.remove('hidden');">추가</button>`;
-    percentBadge.innerHTML = `${addBtnHtml} <span style="margin-left: 10px">${h.percent}% 완료</span>`;
+    const allDone = h.quests.length > 0 && h.quests.every(q => q.completed);
+
+    dateTitle.textContent = `${dateStr}`;
+    percentBadge.innerHTML = `
+        <div class="hist-action-row">
+            <button class="btn-hist-add" onclick="renderForm('${dateStr}'); document.getElementById('modal-container').classList.remove('hidden');">
+                <i data-lucide="plus"></i> 추가
+            </button>
+            <button class="btn-hist-complete ${allDone ? 'all-done' : ''}" onclick="completeAllOnDate('${dateStr}')">
+                <i data-lucide="${allDone ? 'rotate-ccw' : 'check-check'}"></i>
+                ${allDone ? '완료 취소' : '모두 완료'}
+            </button>
+            <span class="hist-percent-badge">${h.percent}%</span>
+        </div>
+    `;
     list.innerHTML = h.quests.map((q, idx) => `
         <div class="history-item">
             <div class="hist-info"><span>[${q.game}] ${q.title}</span></div>
@@ -874,6 +967,26 @@ function showHistoryDetail(dateStr) {
         </div>
     `).join('');
     if (window.lucide) lucide.createIcons();
+}
+
+function completeAllOnDate(dateStr) {
+    const h = state.history[dateStr];
+    if (!h || !h.quests || h.quests.length === 0) return;
+    const allDone = h.quests.every(q => q.completed);
+    // 모두 완료면 모두 취소, 아니면 모두 완료
+    h.quests.forEach(q => { q.completed = !allDone; });
+    h.percent = calculatePercent(h.quests);
+    // 마스터 퀘스트에도 반영
+    if (dateStr === getTodayStr()) {
+        h.quests.forEach(hq => {
+            const mq = state.quests.find(q => q.id === hq.id);
+            if (mq) mq.completed = hq.completed;
+        });
+    }
+    save();
+    showHistoryDetail(dateStr);
+    renderCalendar();
+    showToast(allDone ? '완료 취소되었습니다.' : '모두 완료되었습니다! 🎉', 'info');
 }
 
 function updateStats() {
@@ -1224,7 +1337,10 @@ function renderForm(initialDate, editQuest = null) {
             <div class="form-group"><label>숙제 내용</label><input type="text" id="in-title" value="${editQuest ? editQuest.title : ''}" placeholder="예: 숙제 이름" required></div>
             <div class="form-group"><label>게임 선택</label><select id="in-game">${state.games.map(g => `<option value="${g}" ${editQuest && editQuest.game === g ? 'selected' : ''}>${g}</option>`).join('')}<option value="_new">+ 추가</option></select></div>
             <div class="form-group"><label>반복 주기</label>
-                <select id="in-type" onchange="document.getElementById('interval-input').style.display = this.value === 'interval' ? 'block' : 'none'">
+                <select id="in-type" onchange="
+                    document.getElementById('interval-input').style.display = this.value === 'interval' ? 'block' : 'none';
+                    document.getElementById('enddate-input').style.display = this.value === 'once' ? 'none' : 'block';
+                ">
                     <option value="once" ${editQuest && editQuest.type === 'once' ? 'selected' : ''}>반복 안함 (일회성)</option>
                     <option value="daily" ${editQuest && editQuest.type === 'daily' ? 'selected' : ''}>매일</option>
                     <option value="weekly" ${editQuest && editQuest.type === 'weekly' ? 'selected' : ''}>매주</option>
@@ -1234,6 +1350,10 @@ function renderForm(initialDate, editQuest = null) {
             </div>
             <div class="form-group" id="interval-input" style="${editQuest && editQuest.type === 'interval' ? 'display: block;' : 'display: none;'}">
                 <label>반복 일수 (N)</label><input type="number" id="in-interval" value="${editQuest ? editQuest.interval : 2}" min="1">
+            </div>
+            <div class="form-group" id="enddate-input" style="${editQuest && editQuest.type === 'once' ? 'display: none;' : 'display: block;'}">
+                <label>반복 종료일 <span style="font-size:0.7rem; color:var(--text-dim); font-weight:400;">(선택) 이 날짜 이후 자동 중단</span></label>
+                <input type="date" id="in-enddate" value="${editQuest && editQuest.endDate ? editQuest.endDate : ''}">
             </div>
             <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 1rem;">${editQuest ? '수정 완료' : '숙제 등록'}</button>
         </form>
@@ -1247,7 +1367,15 @@ function renderForm(initialDate, editQuest = null) {
             const name = prompt("새 게임 이름:");
             if (name) { state.games.push(name); game = name; } else return;
         }
-        const formData = { title: document.getElementById('in-title').value, game: game, type: document.getElementById('in-type').value, interval: document.getElementById('in-interval').value, createdAt: selectedDate };
+        const endDateVal = document.getElementById('in-enddate') ? document.getElementById('in-enddate').value : '';
+        const formData = { 
+            title: document.getElementById('in-title').value, 
+            game: game, 
+            type: document.getElementById('in-type').value, 
+            interval: document.getElementById('in-interval').value, 
+            createdAt: selectedDate,
+            endDate: endDateVal || null
+        };
         if (editQuest) { 
             Object.assign(state.quests.find(x => x.id === editQuest.id), formData); 
             syncQuestsToHistoryFromDate(selectedDate);

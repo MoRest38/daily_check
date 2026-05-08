@@ -183,6 +183,40 @@
                         <!-- History items injected here -->
                     </div>
                 </div>
+
+                <!-- 통계 그래프 섹션 -->
+                <div class="stats-section glass" id="stats-section">
+                    <div class="stats-section-header">
+                        <h3><i data-lucide="bar-chart-2"></i> 진행도 통계</h3>
+                        <span class="badge" id="stats-range">최근 30일</span>
+                    </div>
+
+                    <!-- 요약 카드 3개 -->
+                    <div class="stats-summary-grid">
+                        <div class="stats-summary-card">
+                            <div class="stats-summary-label">평균 완료율</div>
+                            <div class="stats-summary-value" id="stat-avg">0%</div>
+                        </div>
+                        <div class="stats-summary-card">
+                            <div class="stats-summary-label">🔥 연속 달성</div>
+                            <div class="stats-summary-value" id="stat-streak">0일</div>
+                        </div>
+                        <div class="stats-summary-card">
+                            <div class="stats-summary-label">🏆 최고 달성</div>
+                            <div class="stats-summary-value" id="stat-best">0%</div>
+                        </div>
+                    </div>
+
+                    <!-- 막대 그래프 -->
+                    <div class="bar-chart-wrapper">
+                        <div class="bar-chart" id="bar-chart">
+                            <!-- JS로 주입 -->
+                        </div>
+                        <div class="bar-chart-labels" id="bar-chart-labels">
+                            <!-- JS로 주입 -->
+                        </div>
+                    </div>
+                </div>
             </section>
 
             <!-- Games View -->

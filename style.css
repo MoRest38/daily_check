@@ -1232,3 +1232,231 @@ body {
     }
 }
 
+/* --- History Action Row --- */
+.hist-action-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.btn-hist-add {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 6px 14px;
+    border-radius: 20px;
+    border: 1px solid rgba(255,255,255,0.12);
+    background: rgba(255,255,255,0.06);
+    color: var(--text-dim);
+    font-size: 0.78rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.btn-hist-add i {
+    width: 13px;
+    height: 13px;
+}
+
+.btn-hist-add:hover {
+    background: rgba(99, 102, 241, 0.15);
+    border-color: rgba(99, 102, 241, 0.4);
+    color: #a5b4fc;
+}
+
+.btn-hist-add:active {
+    transform: scale(0.95);
+}
+
+.btn-hist-complete {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 6px 14px;
+    border-radius: 20px;
+    border: 1px solid rgba(16, 185, 129, 0.3);
+    background: rgba(16, 185, 129, 0.1);
+    color: #6ee7b7;
+    font-size: 0.78rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.25s ease;
+}
+
+.btn-hist-complete i {
+    width: 13px;
+    height: 13px;
+}
+
+.btn-hist-complete:hover {
+    background: rgba(16, 185, 129, 0.2);
+    border-color: rgba(16, 185, 129, 0.5);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.2);
+}
+
+.btn-hist-complete:active {
+    transform: scale(0.95);
+}
+
+/* 모두 취소 상태 */
+.btn-hist-complete.all-done {
+    background: rgba(239, 68, 68, 0.08);
+    border-color: rgba(239, 68, 68, 0.25);
+    color: #fca5a5;
+}
+
+.btn-hist-complete.all-done:hover {
+    background: rgba(239, 68, 68, 0.15);
+    border-color: rgba(239, 68, 68, 0.4);
+    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.15);
+}
+
+.hist-percent-badge {
+    margin-left: auto;
+    font-size: 1rem;
+    font-weight: 800;
+    color: var(--text);
+    opacity: 0.7;
+}
+
+
+/* --- Stats Section --- */
+.stats-section {
+    margin-top: 1.5rem;
+    padding: 1.5rem;
+    border-radius: 16px;
+}
+
+.stats-section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 1.2rem;
+}
+
+.stats-section-header h3 {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 1rem;
+    font-weight: 700;
+    margin: 0;
+}
+
+.stats-section-header h3 i {
+    width: 18px;
+    height: 18px;
+    color: var(--primary);
+}
+
+/* 요약 카드 3개 */
+.stats-summary-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.8rem;
+    margin-bottom: 1.5rem;
+}
+
+.stats-summary-card {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.07);
+    border-radius: 12px;
+    padding: 0.9rem 0.7rem;
+    text-align: center;
+}
+
+.stats-summary-label {
+    font-size: 0.65rem;
+    color: var(--text-dim);
+    margin-bottom: 0.4rem;
+    letter-spacing: 0.03em;
+}
+
+.stats-summary-value {
+    font-size: 1.4rem;
+    font-weight: 800;
+    color: var(--text);
+    line-height: 1;
+}
+
+/* 막대 그래프 */
+.bar-chart-wrapper {
+    width: 100%;
+    overflow-x: auto;
+}
+
+.bar-chart {
+    display: flex;
+    align-items: flex-end;
+    gap: 3px;
+    height: 100px;
+    min-width: 100%;
+    padding-bottom: 4px;
+}
+
+.bar-item {
+    flex: 1;
+    min-width: 6px;
+    height: 100%;
+    display: flex;
+    align-items: flex-end;
+    cursor: pointer;
+    position: relative;
+}
+
+.bar-item:hover .bar-fill {
+    opacity: 0.7;
+    transform: scaleY(1.05);
+    transform-origin: bottom;
+}
+
+.bar-fill {
+    width: 100%;
+    border-radius: 3px 3px 0 0;
+    transition: all 0.2s ease;
+    min-height: 4px;
+}
+
+.bar-chart-labels {
+    display: flex;
+    gap: 3px;
+    margin-top: 6px;
+    min-width: 100%;
+}
+
+.bar-label {
+    flex: 1;
+    font-size: 0.55rem;
+    color: var(--text-dim);
+    text-align: center;
+    white-space: nowrap;
+}
+
+.bar-label-empty {
+    flex: 1;
+}
+
+/* 색상 범례 */
+.stats-legend {
+    display: flex;
+    gap: 12px;
+    margin-top: 1rem;
+    flex-wrap: wrap;
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 0.65rem;
+    color: var(--text-dim);
+}
+
+.legend-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+}
