@@ -115,10 +115,13 @@ function updateUserUI() {
     `;
 
     const headerUserHtml = state.user ? `
-        <img src="${state.user.photoURL}" onclick="state.currentView='settings'; render();" style="width: 32px; height: 32px; border-radius: 50%; border: 2px solid var(--primary); cursor:pointer;">
+        <div class="header-avatar-wrapper" onclick="state.currentView='settings'; render();">
+            <img src="${state.user.photoURL}" class="header-avatar-img">
+            <div class="online-indicator"></div>
+        </div>
     ` : `
-        <button class="btn btn-primary" onclick="login()" style="padding: 5px 10px; border-radius: 8px; display: flex; align-items: center; justify-content: center;">
-            <i data-lucide="log-in" style="width: 18px; height: 18px;"></i>
+        <button class="header-login-btn" onclick="login()">
+            <i data-lucide="user"></i>
         </button>
     `;
 
@@ -557,8 +560,8 @@ function renderSettings() {
                     <i data-lucide="layout-grid"></i>
                     <span class="logo-text">Quest Master</span>
                 </div>
-                <div class="header-user-section" id="header-user-section">
-                    <!-- Mobile Login UI -->
+                <div class="header-user-section-settings">
+                    <!-- Mobile Login UI Settings View -->
                 </div>
             </header>
         <div class="settings-container">

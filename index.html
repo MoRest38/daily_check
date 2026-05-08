@@ -23,20 +23,20 @@
     
     <meta name="theme-color" content="#0f172a">
     <style>
-        /* 알림 스타일 */
+        /* 알림 스타일 - 하단 복구 */
         #error-toast {
             position: fixed !important;
-            top: 20px !important;
+            bottom: 40px !important; /* PC 기본 */
             left: 50% !important;
-            transform: translateX(-50%) translateY(-150%) !important;
-            background: #3b82f6 !important;
+            transform: translateX(-50%) translateY(150%) !important;
+            background: rgba(59, 130, 246, 0.98) !important;
             color: white !important;
-            padding: 14px 28px !important;
+            padding: 12px 28px !important;
             border-radius: 50px !important;
             font-weight: 700 !important;
             z-index: 99999999 !important;
             transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) !important;
-            box-shadow: 0 10px 40px rgba(0,0,0,0.6) !important;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5) !important;
             pointer-events: none !important;
             white-space: nowrap !important;
             opacity: 0 !important;
@@ -46,14 +46,11 @@
             transform: translateX(-50%) translateY(0) !important;
             opacity: 1 !important;
         }
-        @media (min-width: 769px) {
+        @media (max-width: 768px) {
             #error-toast {
-                top: auto !important;
-                bottom: 40px !important;
-                transform: translateX(-50%) translateY(150%) !important;
-            }
-            #error-toast.show {
-                transform: translateX(-50%) translateY(0) !important;
+                bottom: 110px !important; /* 모바일 하단 탭바 위쪽 */
+                font-size: 0.85rem !important;
+                padding: 10px 20px !important;
             }
         }
     </style>
@@ -112,8 +109,8 @@
                     <span>Quest Master</span>
                 </div>
                 <div id="header-user-section">
-                    <button class="btn btn-primary btn-sm" onclick="login()">
-                        <i data-lucide="log-in"></i>
+                    <button class="header-login-btn" onclick="login()">
+                        <i data-lucide="user"></i>
                     </button>
                 </div>
             </header>

@@ -1085,6 +1085,68 @@ body {
     .modal { width: 95%; }
 }
 
+/* --- Premium Header UI --- */
+.header-avatar-wrapper {
+    position: relative;
+    width: 32px;
+    height: 32px;
+    cursor: pointer;
+    transition: transform 0.2s ease;
+}
+
+.header-avatar-wrapper:active {
+    transform: scale(0.9);
+}
+
+.header-avatar-img {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    border: 2px solid rgba(59, 130, 246, 0.5);
+    padding: 2px;
+    background: var(--glass);
+    object-fit: cover;
+}
+
+.online-indicator {
+    position: absolute;
+    bottom: 0;
+    right: 0;
+    width: 10px;
+    height: 10px;
+    background: #10b981;
+    border: 2px solid #0f172a;
+    border-radius: 50%;
+}
+
+.header-login-btn {
+    width: 32px !important;
+    height: 32px !important;
+    min-width: 32px !important;
+    border-radius: 50% !important;
+    background: rgba(255, 255, 255, 0.08) !important;
+    border: 1px solid rgba(255, 255, 255, 0.15) !important;
+    color: var(--text-dim) !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    cursor: pointer !important;
+    padding: 0 !important;
+    margin: 0 !important;
+}
+
+.header-login-btn i {
+    width: 16px;
+    height: 16px;
+}
+
+.header-login-btn:active {
+    background: rgba(59, 130, 246, 0.1);
+    border-color: var(--primary);
+    color: var(--primary);
+    transform: scale(0.9);
+}
+
 /* --- Final Toast Solution --- */
 .toast-final {
     position: fixed !important;
