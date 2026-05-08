@@ -216,7 +216,7 @@ body {
 /* Stats Cards */
 .stats-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    grid-template-columns: 3.5fr 1fr;
     gap: 1.5rem;
     margin-bottom: 3rem;
 }
@@ -1459,4 +1459,299 @@ body {
     width: 8px;
     height: 8px;
     border-radius: 50%;
+}
+
+/* --- Drag & Drop --- */
+.drag-handle {
+    cursor: grab;
+    color: var(--text-dim);
+    padding: 0 10px 0 0;
+    display: flex;
+    align-items: center;
+    opacity: 0.3;
+    transition: opacity 0.2s ease;
+}
+
+.quest-card:hover .drag-handle {
+    opacity: 1;
+}
+
+.drag-handle:active {
+    cursor: grabbing;
+}
+
+.quest-card.dragging {
+    opacity: 0.5;
+    border: 2px dashed var(--primary);
+    transform: scale(0.98);
+}
+
+.quest-card.drag-over {
+    border-top: 2px solid var(--primary);
+}
+
+/* --- Header Dashboard Date Nav --- */
+.dashboard-date-nav-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 5px;
+}
+
+.dashboard-date-nav-header .current-date-display {
+    font-size: 1.5rem;
+    font-weight: 800;
+    color: var(--text-bright);
+    letter-spacing: -0.5px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    transition: all 0.2s ease;
+}
+
+.dashboard-date-nav-header .current-date-display:hover {
+    color: var(--primary);
+    transform: translateY(-1px);
+}
+
+.btn-today-header {
+    margin-left: 8px;
+    padding: 4px 12px;
+    background: rgba(139, 92, 246, 0.1);
+    border: 1px solid rgba(139, 92, 246, 0.2);
+    color: var(--primary);
+    border-radius: 8px;
+    font-size: 0.7rem;
+    font-weight: 800;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.btn-today-header:hover {
+    background: var(--primary);
+    color: white;
+}
+
+.dashboard-date-nav-header .btn-icon-sm {
+    width: 36px;
+    height: 36px;
+    background: rgba(255, 255, 255, 0.03);
+}
+
+/* --- Dashboard Date Nav --- */
+.dashboard-date-nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.8rem 1.2rem;
+    margin-bottom: 1.5rem;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.date-controls {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.current-date-display {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--primary);
+    cursor: pointer;
+}
+
+.current-date-display i {
+    width: 16px;
+    height: 16px;
+    color: var(--text-dim);
+}
+
+.btn-icon-sm {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: white;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.btn-icon-sm:hover {
+    background: var(--primary);
+    border-color: var(--primary);
+    box-shadow: 0 0 10px var(--primary-glow);
+}
+
+.btn-today {
+    padding: 6px 14px;
+    background: rgba(139, 92, 246, 0.15);
+    border: 1px solid rgba(139, 92, 246, 0.3);
+    color: #a5b4fc;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.btn-today:hover {
+    background: var(--primary);
+    color: white;
+}
+
+/* --- Log View --- */
+#log-view {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+.log-container {
+    flex: 1;
+    margin-top: 1rem;
+    padding: 1.5rem;
+    border-radius: 16px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 0.8rem;
+}
+
+.log-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 1rem;
+    padding: 1rem;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 12px;
+    transition: all 0.2s ease;
+}
+
+.log-item:hover {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: rgba(255, 255, 255, 0.1);
+}
+
+.log-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.04);
+}
+
+.log-icon i {
+    width: 16px;
+    height: 16px;
+}
+
+.log-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.log-detail {
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: var(--text-main);
+    line-height: 1.4;
+}
+
+.log-time {
+    font-size: 0.7rem;
+    color: var(--text-dim);
+}
+
+/* --- Gallery View --- */
+#gallery-view {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+.gallery-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 1.2rem;
+    margin-top: 1.5rem;
+    padding-bottom: 2rem;
+}
+
+.gallery-item {
+    position: relative;
+    border-radius: 16px;
+    overflow: hidden;
+    aspect-ratio: 16/10;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    transition: all 0.3s ease;
+}
+
+.gallery-item:hover {
+    transform: translateY(-5px);
+    border-color: var(--primary);
+    box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+}
+
+.gallery-item img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.gallery-delete {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    background: rgba(239, 68, 68, 0.8);
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    opacity: 0;
+    transition: all 0.2s ease;
+    backdrop-filter: blur(4px);
+}
+
+.gallery-item:hover .gallery-delete {
+    opacity: 1;
+}
+
+/* --- Mobile Fixes --- */
+@media (max-width: 768px) {
+    #notes-view {
+        height: calc(100vh - 180px) !important;
+        display: flex !important;
+    }
+    .notes-container {
+        flex: 1;
+        min-height: auto !important;
+        margin-bottom: 20px;
+    }
+    #notes-textarea {
+        min-height: 200px;
+    }
+    .gallery-grid {
+        grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+        gap: 0.8rem;
+    }
 }

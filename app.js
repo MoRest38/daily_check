@@ -26,7 +26,10 @@ let state = {
     calendarDate: new Date(),
     backups: [],
     appTitle: 'Quest Master',
-    notes: ''
+    notes: '',
+    logs: [],
+    screenshots: [],
+    viewDate: getTodayStr()
 };
 
 const DEFAULT_CONFIG = {
@@ -535,7 +538,7 @@ function render() {
         });
         document.title = state.appTitle || 'Quest Master';
 
-        const views = ['dashboard', 'calendar', 'games', 'notes', 'settings'];
+        const views = ['dashboard', 'calendar', 'games', 'notes', 'gallery', 'log', 'settings'];
         views.forEach(v => {
             const btn = document.getElementById(`nav-${v}`);
             const mobileBtn = document.querySelector(`.mobile-bottom-nav [data-action="nav-${v}"]`);
@@ -550,6 +553,8 @@ function render() {
         else if (state.currentView === 'calendar') renderCalendar();
         else if (state.currentView === 'games') renderGames();
         else if (state.currentView === 'notes') renderNotes();
+        else if (state.currentView === 'gallery') renderGallery();
+        else if (state.currentView === 'log') renderLog();
         else if (state.currentView === 'settings') renderSettings();
 
         updateStats();
@@ -558,48 +563,6 @@ function render() {
     } catch (e) { }
 }
 
-function renderDashboard() {
-    updateDate();
-    const daily = document.getElementById('daily-quest-list');
-    const weekly = document.getElementById('weekly-quest-list');
-    const filter = document.getElementById('game-filter');
-    if (!daily || !weekly || !filter) return;
-    
-    filter.innerHTML = `<option value="전체">모든 게임</option>` + 
-                      state.games.map(g => `<option value="${g}" ${g === state.activeGame ? 'selected' : ''}>${g}</option>`).join('');
-
-    daily.innerHTML = ''; weekly.innerHTML = '';
-    const todayStr = getTodayStr();
-    
-    const filteredQuests = state.quests.filter(q => {
-        if (state.activeGame !== '전체' && q.game !== state.activeGame) return false;
-        return isQuestActiveOnDate(q, todayStr);
-    });
-
-    filteredQuests.forEach(q => {
-        const dday = getDaysUntilReset(q);
-        const isUrgent = !q.completed && dday >= 0 && dday <= 1;
-
-        const card = document.createElement('div');
-        card.className = `quest-card glass ${q.completed ? 'completed' : ''}`;
-        card.innerHTML = `
-            <div class="checkbox-wrapper" data-action="toggle" data-id="${q.id}">
-                ${q.completed ? '<i data-lucide="check"></i>' : ''}
-            </div>
-            <div class="quest-content" data-action="edit-quest" data-id="${q.id}">
-                <div class="quest-title">${q.title} ${isUrgent ? '<span class="urgent-tag">🔥 빨리!</span>' : ''}</div>
-                <div class="quest-meta">${q.game} | ${getRepeatText(q)} ${q.type === 'once' ? `(${formatDate(q.createdAt)} 등록)` : `<span class="reset-dday">[${dday === 0 ? '내일 리셋' : `D-${dday}`}]</span>`}</div>
-            </div>
-            <div class="quest-actions">
-                <button class="edit-quest-btn" data-action="edit-quest" data-id="${q.id}"><i data-lucide="edit-3"></i></button>
-                <button class="delete-quest-btn" data-action="delete" data-id="${q.id}"><i data-lucide="trash-2"></i></button>
-            </div>
-        `;
-        if (q.type === 'daily' || q.type === 'interval' || q.type === 'once') daily.appendChild(card);
-        else weekly.appendChild(card);
-    });
-    if (filteredQuests.length === 0) daily.innerHTML = '<p class="empty-msg">기록이 없습니다.</p>';
-}
 
 function renderCalendar() {
     const grid = document.getElementById('calendar-grid');
@@ -721,6 +684,88 @@ function renderStats() {
     }).join('');
 }
 
+function renderLog() {
+    const list = document.getElementById('log-list');
+    if (!list) return;
+
+    if (!state.logs || state.logs.length === 0) {
+        list.innerHTML = '<p class="empty-msg" style="padding: 2rem;">아직 시스템 기록이 없습니다.</p>';
+        return;
+    }
+
+    // 최신 순으로 정렬 (id 역순)
+    const sortedLogs = [...state.logs].sort((a, b) => b.id - a.id);
+    list.innerHTML = sortedLogs.map(log => {
+        const d = new Date(log.id);
+        const dateStr = d.toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' });
+        const timeStr = d.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        
+        let icon = 'info';
+        let color = 'var(--text-dim)';
+        if (log.action === 'add') { icon = 'plus-circle'; color = '#10b981'; } // Green
+        else if (log.action === 'edit') { icon = 'edit-3'; color = '#3b82f6'; } // Blue
+        else if (log.action === 'delete') { icon = 'trash-2'; color = '#ef4444'; } // Red
+        else if (log.action === 'complete') { icon = 'check-circle'; color = '#f59e0b'; } // Yellow
+
+        return `
+            <div class="log-item">
+                <div class="log-icon" style="color: ${color};"><i data-lucide="${icon}"></i></div>
+                <div class="log-content">
+                    <div class="log-detail">${log.detail}</div>
+                    <div class="log-time">${dateStr} ${timeStr}</div>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+function renderGallery() {
+    const list = document.getElementById('gallery-list');
+    const input = document.getElementById('input-screenshot');
+    if (!list || !input) return;
+
+    // 이벤트 리스너 중복 방지
+    if (!input.dataset.listener) {
+        input.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    if (!state.screenshots) state.screenshots = [];
+                    state.screenshots.push({ id: Date.now(), data: event.target.result });
+                    addLog('info', '갤러리에 새 스크린샷이 추가되었습니다.');
+                    save(); renderGallery();
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+        input.dataset.listener = "true";
+    }
+
+    if (!state.screenshots || state.screenshots.length === 0) {
+        list.innerHTML = '<p class="empty-msg" style="padding: 2rem;">저장된 스크린샷이 없습니다.</p>';
+        return;
+    }
+
+    list.innerHTML = state.screenshots.map(s => `
+        <div class="gallery-item glass">
+            <img src="${s.data}" alt="Screenshot">
+            <button class="gallery-delete" onclick="deleteScreenshot(${s.id})">
+                <i data-lucide="trash-2"></i>
+            </button>
+        </div>
+    `).join('');
+    if (window.lucide) lucide.createIcons();
+}
+
+function deleteScreenshot(id) {
+    if (confirm("이 스크린샷을 삭제하시겠습니까?")) {
+        state.screenshots = state.screenshots.filter(s => s.id !== id);
+        addLog('delete', '스크린샷이 삭제되었습니다.');
+        save(); renderGallery();
+    }
+}
+
 function renderNotes() {
     const textarea = document.getElementById('notes-textarea');
     if (textarea) {
@@ -840,6 +885,89 @@ function renderSettings() {
         </div>
     `;
     if (window.lucide) lucide.createIcons();
+}
+
+function renderDashboard() {
+    updateDate();
+    const daily = document.getElementById('daily-quest-list');
+    const weekly = document.getElementById('weekly-quest-list');
+    const displayDate = document.getElementById('display-dashboard-date');
+    const filter = document.getElementById('game-filter');
+    if (!daily || !weekly) return;
+
+    if (filter) {
+        filter.innerHTML = `<option value="전체">모든 게임</option>` + 
+                          state.games.map(g => `<option value="${g}" ${g === state.activeGame ? 'selected' : ''}>${g}</option>`).join('');
+    }
+
+    const targetDate = state.viewDate || getTodayStr();
+    if (displayDate) displayDate.textContent = targetDate;
+
+    // 해당 날짜에 활성화된 숙제 필터링
+    const filteredQuests = state.quests.filter(q => {
+        if (state.activeGame !== '전체' && q.game !== state.activeGame) return false;
+        return isQuestActiveOnDate(q, targetDate);
+    });
+    
+    daily.innerHTML = '';
+    weekly.innerHTML = '';
+
+    filteredQuests.forEach(q => {
+        const isDone = isCompletedInCycle(q, targetDate);
+        const dday = getDaysUntilReset(q);
+        const isUrgent = !isDone && dday >= 0 && dday <= 1 && targetDate === getTodayStr();
+        
+        const card = document.createElement('div');
+        card.className = `quest-card glass ${isDone ? 'completed' : ''}`;
+        
+        let endInfo = '';
+        if (q.endDate) {
+            const diff = (new Date(q.endDate) - new Date(targetDate)) / (1000*60*60*24);
+            if (diff <= 3 && diff >= 0) endInfo = `<span class="urgent-tag">종료 ${Math.ceil(diff)}일 전</span>`;
+        }
+
+        card.innerHTML = `
+            <div class="drag-handle" draggable="true">
+                <i data-lucide="grip-vertical"></i>
+            </div>
+            <div class="checkbox-wrapper" data-action="toggle" data-id="${q.id}">
+                ${isDone ? '<i data-lucide="check"></i>' : ''}
+            </div>
+            <div class="quest-content" data-action="edit-quest" data-id="${q.id}">
+                <div class="quest-title">${q.title} ${isUrgent ? '<span class="urgent-tag">🔥 빨리!</span>' : ''}</div>
+                <div class="quest-meta">${q.game} | ${getRepeatText(q)} ${q.type === 'once' ? `(${formatDate(q.createdAt)} 등록)` : `<span class="reset-dday">[D-${dday}]</span>`} ${endInfo}</div>
+            </div>
+            <div class="quest-actions">
+                <button class="edit-quest-btn" data-action="edit-quest" data-id="${q.id}"><i data-lucide="edit-3"></i></button>
+                <button class="delete-quest-btn" data-action="delete" data-id="${q.id}"><i data-lucide="trash-2"></i></button>
+            </div>
+        `;
+        // 드래그 이벤트 바인딩
+        card.setAttribute('draggable', 'true');
+        card.setAttribute('data-id', q.id);
+        card.addEventListener('dragstart', handleDragStart);
+        card.addEventListener('dragover', handleDragOver);
+        card.addEventListener('drop', handleDrop);
+        card.addEventListener('dragend', handleDragEnd);
+
+        if (q.type === 'daily' || q.type === 'interval' || q.type === 'once') daily.appendChild(card);
+        else weekly.appendChild(card);
+    });
+
+    if (filteredQuests.length === 0) daily.innerHTML = '<p class="empty-msg">해당 날짜에 활성화된 숙제가 없습니다.</p>';
+    if (window.lucide) lucide.createIcons();
+}
+
+function changeDashboardDate(offset) {
+    const d = new Date(state.viewDate);
+    d.setDate(d.getDate() + offset);
+    state.viewDate = d.toISOString().split('T')[0];
+    render();
+}
+
+function setDashboardDate(dateStr) {
+    state.viewDate = dateStr;
+    render();
 }
 
 function renderGames() {
@@ -976,7 +1104,10 @@ function completeAllOnDate(dateStr) {
     if (dateStr === getTodayStr()) {
         h.quests.forEach(hq => {
             const mq = state.quests.find(q => q.id === hq.id);
-            if (mq) mq.completed = hq.completed;
+            if (mq) {
+                mq.completed = hq.completed;
+                addLog('complete', `숙제 완료 상태 변경: [${mq.game}] ${mq.title}`);
+            }
         });
     }
     save();
@@ -1043,16 +1174,18 @@ function setupEventListeners() {
         if (action === 'toggle') {
             const q = state.quests.find(x => x.id == id);
             if (q) { 
-                const today = getTodayStr();
-                const newState = !q.completed;
+                const targetDate = state.viewDate || getTodayStr();
+                const isDone = isCompletedInCycle(q, targetDate);
+                const newState = !isDone;
                 
                 // 마스터 상태 즉시 변경
                 q.completed = newState; 
-                if (newState) q.completedAt = today;
+                if (newState) q.completedAt = targetDate;
                 else delete q.completedAt;
                 
+                addLog('complete', `숙제 완료 상태 변경: [${q.game}] ${q.title} (${targetDate})`);
                 // 모든 관련 히스토리 일괄 갱신
-                syncStatusAcrossHistory(q, today);
+                syncStatusAcrossHistory(q, targetDate);
                 
                 render(); 
                 save(); 
@@ -1085,24 +1218,14 @@ function setupEventListeners() {
                 save();
             }
         }
-        if (action === 'delete') {
-            const q = state.quests.find(x => x.id == id);
-            if (!q) return;
-            const same = state.quests.filter(x => x.title === q.title);
-            let ids = [q.id];
-            if (same.length > 1) {
-                if (confirm(`'${q.title}' ${same.length}개를 모두 영구 삭제할까요?`)) ids = same.map(x => x.id);
-                else if (!confirm("이 하나만 영구 삭제할까요?")) return;
-            } else if (!confirm("완전히 삭제하시겠습니까?")) return;
-
-            state.quests = state.quests.filter(x => !ids.includes(x.id));
-            Object.keys(state.history).forEach(d => {
-                const h = state.history[d];
-                h.quests = h.quests.filter(hq => !ids.includes(hq.id));
-                if (h.quests.length === 0) delete state.history[d];
-                else h.percent = calculatePercent(h.quests);
-            });
-            render(); save();
+        if (target.closest('.delete-quest-btn')) {
+            const id = parseInt(target.closest('.delete-quest-btn').dataset.id);
+            const q = state.quests.find(x => x.id === id);
+            if (confirm("정말 삭제하시겠습니까? (이전 기록은 유지됩니다)")) {
+                if (q) addLog('delete', `숙제 삭제됨: [${q.game}] ${q.title}`);
+                state.quests = state.quests.filter(q => q.id !== id);
+                render(); save();
+            }
         }
         if (action === 'delete-hist') {
             const dateStr = target.dataset.date;
@@ -1113,6 +1236,7 @@ function setupEventListeners() {
             if (choice) {
                 const ids = state.quests.filter(x => x.title === qH.title).map(x => x.id);
                 if (ids.length === 0) ids.push(qH.id);
+                addLog('delete', `숙제 영구 삭제: ${qH.title}`);
                 state.quests = state.quests.filter(x => !ids.includes(x.id));
                 Object.keys(state.history).forEach(d => {
                     const h = state.history[d];
@@ -1298,6 +1422,8 @@ function setupEventListeners() {
         else if (id === 'nav-calendar') state.currentView = 'calendar';
         else if (id === 'nav-games') state.currentView = 'games';
         else if (id === 'nav-notes') state.currentView = 'notes';
+        else if (id === 'nav-gallery') state.currentView = 'gallery';
+        else if (id === 'nav-log') state.currentView = 'log';
         else if (id === 'nav-settings') state.currentView = 'settings';
         render();
         return; 
@@ -1374,16 +1500,79 @@ function renderForm(initialDate, editQuest = null) {
         };
         if (editQuest) { 
             Object.assign(state.quests.find(x => x.id === editQuest.id), formData); 
+            addLog('edit', `숙제 수정됨: [${game}] ${formData.title}`);
             syncQuestsToHistoryFromDate(selectedDate);
         }
         else {
             const newQuest = { id: Date.now(), ...formData, completed: false };
             state.quests.push(newQuest);
+            addLog('add', `새 숙제 추가됨: [${game}] ${formData.title} (${formData.type})`);
             syncQuestsToHistoryFromDate(selectedDate);
         }
         document.getElementById('modal-container').classList.add('hidden');
         render(); save();
     };
+}
+
+function addLog(action, detail) {
+    if (!state.logs) state.logs = [];
+    state.logs.push({ id: Date.now(), action: action, detail: detail });
+    // 최근 200개까지만 유지하여 용량 최적화
+    if (state.logs.length > 200) {
+        state.logs = state.logs.slice(-200);
+    }
+}
+
+function clearLogs() {
+    if (confirm("모든 시스템 로그를 삭제하시겠습니까?")) {
+        state.logs = [];
+        addLog('info', '모든 로그가 초기화되었습니다.');
+        save();
+        renderLog();
+        if (window.lucide) lucide.createIcons();
+    }
+}
+
+// --- Drag & Drop Logic ---
+let dragSrcEl = null;
+
+function handleDragStart(e) {
+    dragSrcEl = this;
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', this.getAttribute('data-id'));
+    this.classList.add('dragging');
+}
+
+function handleDragOver(e) {
+    if (e.preventDefault) e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    return false;
+}
+
+function handleDrop(e) {
+    if (e.stopPropagation) e.stopPropagation();
+    
+    const targetId = this.getAttribute('data-id');
+    const sourceId = e.dataTransfer.getData('text/plain');
+    
+    if (sourceId !== targetId) {
+        const sourceIndex = state.quests.findIndex(q => q.id == sourceId);
+        const targetIndex = state.quests.findIndex(q => q.id == targetId);
+        
+        const [movedQuest] = state.quests.splice(sourceIndex, 1);
+        state.quests.splice(targetIndex, 0, movedQuest);
+        
+        addLog('edit', `숙제 순서 변경됨: ${movedQuest.title}`);
+        save();
+        render();
+    }
+    return false;
+}
+
+function handleDragEnd(e) {
+    this.classList.remove('dragging');
+    const cards = document.querySelectorAll('.quest-card');
+    cards.forEach(c => c.classList.remove('drag-over'));
 }
 
 

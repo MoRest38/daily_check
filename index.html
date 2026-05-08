@@ -95,6 +95,14 @@
                     <i data-lucide="sticky-note"></i>
                     <span>메모장</span>
                 </button>
+                <button class="nav-item" id="nav-gallery">
+                    <i data-lucide="image"></i>
+                    <span>갤러리</span>
+                </button>
+                <button class="nav-item" id="nav-log">
+                    <i data-lucide="scroll-text"></i>
+                    <span>히스토리 로그</span>
+                </button>
                 <button class="nav-item" id="nav-settings">
                     <i data-lucide="settings"></i>
                     <span>데이터 관리</span>
@@ -120,8 +128,17 @@
             </header>
             <header class="top-bar">
                 <div class="header-info">
-                    <h1 id="page-title">오늘의 숙제</h1>
-                    <p id="current-date">로딩 중...</p>
+                    <div class="dashboard-date-nav-header">
+                        <button class="btn-icon-sm" onclick="changeDashboardDate(-1)"><i data-lucide="chevron-left"></i></button>
+                        <div class="current-date-display" onclick="document.getElementById('input-dashboard-date').showPicker()">
+                            <span id="display-dashboard-date">2026-05-08</span>
+                            <i data-lucide="calendar"></i>
+                            <input type="date" id="input-dashboard-date" onchange="setDashboardDate(this.value)" style="display:none;">
+                        </div>
+                        <button class="btn-icon-sm" onclick="changeDashboardDate(1)"><i data-lucide="chevron-right"></i></button>
+                        <button class="btn-today-header" onclick="setDashboardDate(getTodayStr())">TODAY</button>
+                    </div>
+                    <p id="current-date" style="display:none;"></p>
                 </div>
                 <div class="header-actions">
                     <div class="filter-group">
@@ -239,7 +256,21 @@
                     <span class="badge" id="note-status">자동 저장됨</span>
                 </div>
                 <div class="notes-container glass">
-                    <textarea id="notes-textarea" placeholder="여기에 중요한 메모를 남겨보세요... (실시간으로 동기화됩니다)" spellcheck="false"></textarea>
+                    <textarea id="notes-textarea" placeholder="여기에 메모를 입력하세요..."></textarea>
+                </div>
+            </section>
+
+            <!-- Gallery View -->
+            <section id="gallery-view" class="view hidden">
+                <div class="section-header">
+                    <h2><i data-lucide="image"></i> 스크린샷 갤러리</h2>
+                    <label for="input-screenshot" class="btn btn-primary btn-sm" style="cursor: pointer;">
+                        <i data-lucide="plus"></i> 스샷 추가
+                    </label>
+                    <input type="file" id="input-screenshot" accept="image/*" style="display: none;">
+                </div>
+                <div class="gallery-grid" id="gallery-list">
+                    <!-- Images injected here -->
                 </div>
             </section>
 
@@ -284,6 +315,18 @@
                     </div>
                 </div>
             </section>
+            <!-- Log View -->
+            <section id="log-view" class="view hidden">
+                <div class="section-header">
+                    <h2><i data-lucide="scroll-text"></i> 시스템 로그</h2>
+                    <button class="btn btn-primary btn-sm" onclick="clearLogs()" style="background: rgba(239, 68, 68, 0.1); border-color: rgba(239, 68, 68, 0.3); color: #fca5a5;">
+                        <i data-lucide="trash-2"></i> 전체 삭제
+                    </button>
+                </div>
+                <div class="log-container glass" id="log-list">
+                    <!-- Logs injected here -->
+                </div>
+            </section>
         </main>
     </div>
 
@@ -306,6 +349,14 @@
         <button class="nav-item" data-action="nav-notes">
             <i data-lucide="sticky-note"></i>
             <span>메모</span>
+        </button>
+        <button class="nav-item" data-action="nav-gallery">
+            <i data-lucide="image"></i>
+            <span>갤러리</span>
+        </button>
+        <button class="nav-item" data-action="nav-log">
+            <i data-lucide="scroll-text"></i>
+            <span>로그</span>
         </button>
         <button class="nav-item" data-action="nav-settings">
             <i data-lucide="settings"></i>
