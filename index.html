@@ -13,10 +13,10 @@
     <!-- Styles -->
     <link rel="stylesheet" href="style.css">
     
-    <!-- Firebase -->
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+    <!-- Firebase (v10 Compat) -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
     
     <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
@@ -54,47 +54,30 @@
             }
         }
     </style>
-    <script>
-        // 알림창 함수 (중복 방지를 위해 하나로 통합)
-        function showToast(msg, type = "info") {
-            const toast = document.getElementById('error-toast');
-            if (toast) {
-                toast.textContent = msg;
-                toast.style.background = type === "info" ? "#3b82f6" : "#ef4444";
-                toast.classList.add('show');
-                setTimeout(() => {
-                    toast.classList.remove('show');
-                }, 3000);
-            }
-        }
-    </script>
 </head>
 <body class="dark-theme">
     <div id="app">
 
         <!-- Sidebar -->
         <nav class="sidebar">
-            <div class="logo">
-                <i data-lucide="layout-grid" class="logo-icon"></i>
-                <span class="logo-text">QuestMaster</span>
-            </div>
+            <div class="sidebar-spacer"></div>
             <div class="nav-links">
-                <button class="nav-item active" id="nav-dashboard">
+                <a href="#" class="nav-item active" id="nav-dashboard" data-action="nav-dashboard">
                     <i data-lucide="layout-dashboard"></i>
-                    <span>대시보드</span>
-                </button>
-                <button class="nav-item" id="nav-games">
-                    <i data-lucide="users"></i>
-                    <span>게임 관리</span>
-                </button>
-                <button class="nav-item" id="nav-calendar">
+                    <span>숙제</span>
+                </a>
+                <a href="#" class="nav-item" id="nav-games" data-action="nav-games">
+                    <i data-lucide="gamepad-2"></i>
+                    <span>탭 관리</span>
+                </a>
+                <a href="#" class="nav-item" id="nav-calendar" data-action="nav-calendar">
                     <i data-lucide="calendar"></i>
-                    <span>기록 달력</span>
-                </button>
-                <button class="nav-item" id="nav-notes">
+                    <span>캘린더</span>
+                </a>
+                <a href="#" class="nav-item" id="nav-notes" data-action="nav-notes">
                     <i data-lucide="sticky-note"></i>
-                    <span>메모장</span>
-                </button>
+                    <span>노트</span>
+                </a>
                 <button class="nav-item" id="nav-gallery">
                     <i data-lucide="camera"></i>
                     <span>갤러리</span>
@@ -115,32 +98,9 @@
 
         <!-- Main Content -->
         <main class="content">
-            <header class="mobile-top-header">
-                <div class="mobile-logo">
-                    <i data-lucide="layout-grid"></i>
-                    <span class="logo-text">Quest Master</span>
-                </div>
-                <div id="header-user-section">
-                    <button class="header-login-btn" onclick="login()">
-                        <i data-lucide="user"></i>
-                    </button>
-                </div>
-            </header>
             <header class="top-bar">
-                <div class="header-info">
-                    <div class="dashboard-date-nav-header">
-                        <button class="btn-icon-sm" onclick="changeDashboardDate(-1)"><i data-lucide="chevron-left"></i></button>
-                        <div class="current-date-display" onclick="document.getElementById('input-dashboard-date').showPicker()">
-                            <span id="display-dashboard-date">2026-05-08</span>
-                            <i data-lucide="calendar"></i>
-                            <input type="date" id="input-dashboard-date" onchange="setDashboardDate(this.value)" style="display:none;">
-                        </div>
-                        <button class="btn-icon-sm" onclick="changeDashboardDate(1)"><i data-lucide="chevron-right"></i></button>
-                        <button class="btn-today-header" onclick="setDashboardDate(getTodayStr())">TODAY</button>
-                    </div>
-                    <p id="current-date" style="display:none;"></p>
-                </div>
-                <div class="header-actions">
+                <div class="header-info"></div>
+                <div class="header-actions pc-only-actions">
                     <div class="filter-group">
                         <select id="game-filter" class="glass-select">
                             <option value="전체">모든 게임</option>
@@ -153,18 +113,42 @@
                 </div>
             </header>
 
-            <section id="dashboard-view">
-                <div class="stats-grid">
-                    <div class="stat-card glass">
-                        <div class="stat-header"><span>전체 진행률</span><i data-lucide="trending-up"></i></div>
-                        <div class="stat-value" id="stat-percent">0%</div>
-                        <div class="progress-bar"><div class="progress-fill" id="stat-fill" style="width: 0%"></div></div>
+            <main class="main-content">
+                <!-- 대시보드 프리미엄 헤더 (중앙 배치) -->
+                <div class="dashboard-dynamic-header">
+                    <!-- 1. 날짜 컨트롤 -->
+                    <div class="premium-date-nav glass">
+                        <button class="nav-btn-circle" onclick="changeDashboardDate(-1)"><i data-lucide="chevron-left"></i></button>
+                        <div class="date-main-info" onclick="document.getElementById('input-dashboard-date').showPicker()">
+                            <i data-lucide="calendar"></i>
+                            <span id="display-dashboard-date">2026-05-08</span>
+                            <input type="date" id="input-dashboard-date" onchange="setDashboardDate(this.value)" style="display:none;">
+                        </div>
+                        <button class="nav-btn-circle" onclick="changeDashboardDate(1)"><i data-lucide="chevron-right"></i></button>
+                        <button class="today-chip" onclick="setDashboardDate(getTodayStr())">TODAY</button>
                     </div>
-                    <div class="stat-card glass">
-                        <div class="stat-header"><span>남은 숙제</span><i data-lucide="list-todo" class="text-yellow"></i></div>
-                        <div class="stat-value" id="stat-remains">0</div>
+
+                    <!-- 2. 위젯 그리드 -->
+                    <div class="dashboard-widgets-grid">
+                        <div class="widget-card timeline-card glass">
+                            <div id="mini-calendar-strip" class="timeline-strip"></div>
+                        </div>
+                        <div class="widget-card status-card glass">
+                            <div class="status-content">
+                                <div class="status-left">
+                                    <div class="status-label">오늘의 숙제 현황</div>
+                                    <div id="stat-remains-badge" class="remains-counter">남은 숙제 0</div>
+                                </div>
+                                <div id="stat-percent" class="status-percent">0%</div>
+                            </div>
+                            <div class="status-progress-track">
+                                <div id="stat-fill" class="status-progress-fill"></div>
+                            </div>
+                        </div>
                     </div>
                 </div>
+
+                <section id="dashboard-view">
 
                 <div class="quest-section">
                     <div class="section-header"><h2>일일 숙제</h2><span class="badge">DAILY</span></div>
@@ -177,38 +161,50 @@
                 </div>
             </section>
 
-            <!-- Calendar View (Hidden by default) -->
+            <!-- Calendar View (Split Layout for Web) -->
             <section id="calendar-view" class="view hidden">
-                <div class="calendar-container glass">
-                    <div class="calendar-header">
-                        <button class="btn-icon" id="prev-month"><i data-lucide="chevron-left"></i></button>
-                        <h2 id="calendar-month-year">2026년 5월</h2>
-                        <button class="btn-icon" id="next-month"><i data-lucide="chevron-right"></i></button>
+                <div class="calendar-split-layout">
+                    <!-- 왼쪽: 달력 영역 -->
+                    <div class="calendar-main-card glass">
+                        <div class="calendar-header">
+                            <button class="btn-icon" id="prev-month"><i data-lucide="chevron-left"></i></button>
+                            <h2 id="calendar-month-year">2026년 5월</h2>
+                            <button class="btn-icon" id="next-month"><i data-lucide="chevron-right"></i></button>
+                        </div>
+                        <div class="calendar-grid-header">
+                            <span>일</span><span>월</span><span>화</span><span>수</span><span>목</span><span>금</span><span>토</span>
+                        </div>
+                        <div class="calendar-grid" id="calendar-grid"></div>
                     </div>
-                    <div class="calendar-grid-header">
-                        <span>일</span><span>월</span><span>화</span><span>수</span><span>목</span><span>금</span><span>토</span>
-                    </div>
-                    <div class="calendar-grid" id="calendar-grid"></div>
-                </div>
-                
-                <div class="history-detail glass hidden" id="history-detail">
-                    <div class="history-header">
-                        <h3 id="history-date">2026-05-08 기록</h3>
-                        <span class="badge" id="history-percent">100%</span>
-                    </div>
-                    <div class="history-list" id="history-list">
-                        <!-- History items injected here -->
+                    
+                    <!-- 오른쪽: 상세 기록 패널 -->
+                    <div class="history-detail-panel glass" id="history-detail">
+                        <div class="history-panel-header">
+                            <div class="history-date-group">
+                                <i data-lucide="calendar-days"></i>
+                                <h3 id="history-date">기록을 선택하세요</h3>
+                            </div>
+                            <div class="history-header-right">
+                                <div id="history-actions-container"></div>
+                                <span class="badge" id="history-percent">0%</span>
+                            </div>
+                        </div>
+                        <div class="history-list-scroll" id="history-list">
+                            <div class="empty-detail-msg">
+                                <i data-lucide="mouse-pointer-2"></i>
+                                <p>달력에서 날짜를 선택하여<br>상세 숙제 기록을 확인하세요.</p>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
-                <!-- 통계 그래프 섹션 -->
+                <!-- 통계 섹션 (달력 아래로 이동) -->
                 <div class="stats-section glass" id="stats-section">
                     <div class="stats-section-header">
                         <h3><i data-lucide="bar-chart-2"></i> 진행도 통계</h3>
                         <span class="badge" id="stats-range">최근 30일</span>
                     </div>
-
-                    <!-- 요약 카드 3개 -->
+                    <!-- 통계 내용은 동일 -->
                     <div class="stats-summary-grid">
                         <div class="stats-summary-card">
                             <div class="stats-summary-label">평균 완료율</div>
@@ -223,15 +219,9 @@
                             <div class="stats-summary-value" id="stat-best">0%</div>
                         </div>
                     </div>
-
-                    <!-- 막대 그래프 -->
                     <div class="bar-chart-wrapper">
-                        <div class="bar-chart" id="bar-chart">
-                            <!-- JS로 주입 -->
-                        </div>
-                        <div class="bar-chart-labels" id="bar-chart-labels">
-                            <!-- JS로 주입 -->
-                        </div>
+                        <div class="bar-chart" id="bar-chart"></div>
+                        <div class="bar-chart-labels" id="bar-chart-labels"></div>
                     </div>
                 </div>
             </section>
@@ -239,9 +229,9 @@
             <!-- Games View -->
             <section id="games-view" class="hidden">
                 <div class="section-header">
-                    <h2>게임 관리</h2>
+                    <h2>탭 관리</h2>
                     <button class="btn btn-primary btn-sm" id="btn-add-game">
-                        <i data-lucide="plus"></i> 게임 추가
+                        <i data-lucide="plus"></i> 탭 추가
                     </button>
                 </div>
                 <div class="character-grid" id="game-list">
@@ -249,14 +239,41 @@
                 </div>
             </section>
 
-            <!-- Notes View -->
+            <!-- Notes View (Multi-Note System) -->
             <section id="notes-view" class="hidden">
-                <div class="section-header">
-                    <h2>메모장</h2>
-                    <span class="badge" id="note-status">자동 저장됨</span>
-                </div>
-                <div class="notes-container glass">
-                    <textarea id="notes-textarea" placeholder="여기에 메모를 입력하세요..."></textarea>
+                <div class="notes-layout">
+                    <!-- 왼쪽: 노트 리스트 -->
+                    <div class="notes-sidebar glass">
+                        <div class="notes-sidebar-header">
+                            <h3><i data-lucide="sticky-note"></i> 내 노트</h3>
+                            <button class="btn-icon-sm" onclick="addNote()" title="새 노트 추가">
+                                <i data-lucide="plus"></i>
+                            </button>
+                        </div>
+                        <div id="notes-list" class="notes-list-container">
+                            <!-- 노트 리스트가 여기에 생성됨 -->
+                        </div>
+                    </div>
+
+                    <!-- 오른쪽: 에디터 영역 -->
+                    <div class="notes-editor-container glass">
+                        <div id="editor-empty-state" class="editor-empty">
+                            <i data-lucide="edit-3"></i>
+                            <p>작성할 노트를 선택하거나<br>새 노트를 만들어보세요.</p>
+                        </div>
+                        <div id="editor-active-state" class="editor-active hidden">
+                            <div class="editor-header">
+                                <input type="text" id="note-title-input" class="note-title-input" placeholder="제목 없는 노트">
+                                <div class="editor-meta">
+                                    <span id="note-save-status">자동 저장됨</span>
+                                    <button class="btn-icon-sm danger" onclick="deleteActiveNote()" title="노트 삭제">
+                                        <i data-lucide="trash-2"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <textarea id="notes-textarea" class="notes-textarea" placeholder="여기에 내용을 입력하세요..."></textarea>
+                        </div>
+                    </div>
                 </div>
             </section>
 
@@ -331,24 +348,41 @@
     </div>
 
 
+    <!-- Mobile FAB Container -->
+    <div class="mobile-fab-container" id="mobile-fab-container">
+        <div class="fab-menu" id="fab-menu">
+            <button class="fab-menu-item fab-main glass" onclick="document.getElementById('add-quest-btn').click(); toggleFab();">
+                <i data-lucide="edit-3"></i>
+                <span>숙제 작성</span>
+            </button>
+            <button class="fab-menu-item glass" id="fab-user-action">
+                <i data-lucide="user"></i>
+                <span id="fab-user-text">로그인</span>
+            </button>
+        </div>
+        <button id="mobile-fab" class="mobile-fab glass" onclick="toggleFab()">
+            <i data-lucide="plus"></i>
+        </button>
+    </div>
+
     <!-- Modals -->
     <!-- Mobile Bottom Navigation -->
     <nav class="mobile-bottom-nav">
         <button class="nav-item active" data-action="nav-dashboard">
             <i data-lucide="layout-grid"></i>
-            <span>홈</span>
+            <span>숙제</span>
         </button>
         <button class="nav-item" data-action="nav-calendar">
             <i data-lucide="calendar"></i>
-            <span>달력</span>
+            <span>캘린더</span>
         </button>
         <button class="nav-item" data-action="nav-games">
             <i data-lucide="gamepad-2"></i>
-            <span>게임</span>
+            <span>탭 관리</span>
         </button>
         <button class="nav-item" data-action="nav-notes">
             <i data-lucide="sticky-note"></i>
-            <span>메모</span>
+            <span>노트</span>
         </button>
         <button class="nav-item" data-action="nav-gallery">
             <i data-lucide="camera"></i>

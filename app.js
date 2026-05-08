@@ -5,12 +5,7 @@
 // --- 1. Error Monitoring ---
 window.onerror = function(msg, url, line) {
     console.error("Global Error:", msg, "at line", line);
-    const toast = document.getElementById('error-toast');
-    if (toast) {
-        toast.textContent = "에러 발생: " + msg + " (" + line + "행)";
-        toast.style.display = 'block';
-        setTimeout(() => { toast.style.display = 'none'; }, 8000);
-    }
+    showToast("에러 발생: " + msg + " (" + line + "행)", "error");
     return false;
 };
 
@@ -29,7 +24,8 @@ let state = {
     notes: '',
     logs: [],
     screenshots: [],
-    viewDate: getTodayStr()
+    viewDate: getTodayStr(),
+    gameIcons: {}
 };
 
 const DEFAULT_CONFIG = {
@@ -53,8 +49,8 @@ let isInitialized = false;
 
 // --- 3. Initialization ---
 window.onload = async () => {
-    render(); 
     initFirebase();
+    render(); 
     setupEventListeners();
 };
 
@@ -94,50 +90,83 @@ function login() {
 }
 
 function logout() {
-    firebase.auth().signOut().then(() => {
-        state.user = null;
-        render();
-    });
+    if (confirm("로그아웃 하시겠습니까?")) {
+        firebase.auth().signOut().then(() => {
+            state.user = null;
+            render();
+        });
+    }
 }
 
-function updateUserUI() {
-    const section = document.getElementById('user-section');
-    const headerSection = document.getElementById('header-user-section');
 
-    const userHtml = state.user ? `
-        <div style="display:flex; align-items:center; gap:10px; padding:10px; background:rgba(255,255,255,0.05); border-radius:12px;">
-            <img src="${state.user.photoURL}" style="width: 32px; height: 32px; border-radius: 50%; border: 2px solid var(--primary);">
-            <div style="flex: 1; font-size: 11px; overflow:hidden;">
-                <div style="font-weight: 700; white-space:nowrap; text-overflow:ellipsis; overflow:hidden;">${state.user.displayName}</div>
-                <button onclick="logout()" style="background:none; border:none; color:var(--text-dim); padding:0; cursor:pointer; font-size:10px;">Cloud Logout</button>
+function renderUserSection() {
+    const userSection = document.getElementById('user-section');
+    const mobileUserSection = document.getElementById('header-user-section');
+    const fabUserText = document.getElementById('fab-user-text');
+    const fabUserAction = document.getElementById('fab-user-action');
+    if (!userSection) return;
+
+    if (state.user) {
+        const userCardHtml = `
+            <div class="user-card-premium glass">
+                <img src="${state.user.photoURL || 'https://via.placeholder.com/40'}" alt="profile" class="user-avatar">
+                <div class="user-info-main">
+                    <div class="user-name-row">
+                        <span class="user-name">${state.user.displayName || '사용자'}</span>
+                        <div class="sync-status">
+                            <span class="status-dot"></span>
+                            <span class="status-text">Cloud Sync</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="user-actions-mini">
+                    <button class="action-btn-sm" onclick="syncData()" title="데이터 동기화">
+                        <i data-lucide="refresh-cw"></i>
+                    </button>
+                    <button class="action-btn-sm logout" onclick="logout()" title="로그아웃">
+                        <i data-lucide="log-out"></i>
+                    </button>
+                </div>
             </div>
-        </div>
-    ` : `
-        <button class="btn btn-primary" onclick="login()" style="width: 100%; display:flex; align-items:center; justify-content:center; gap:8px;">
-            <i data-lucide="cloud"></i> Cloud Sync
-        </button>
-    `;
+        `;
+        const mobileUserHtml = `
+            <div class="header-avatar-wrapper" onclick="logout()">
+                <img src="${state.user.photoURL || 'https://via.placeholder.com/40'}" alt="profile" class="header-avatar-img">
+                <div class="online-indicator"></div>
+            </div>
+        `;
+        userSection.innerHTML = userCardHtml;
+        if (mobileUserSection) mobileUserSection.innerHTML = mobileUserHtml;
 
-    const headerUserHtml = state.user ? `
-        <div class="header-avatar-wrapper" onclick="state.currentView='settings'; render();">
-            <img src="${state.user.photoURL}" class="header-avatar-img">
-            <div class="online-indicator"></div>
-        </div>
-    ` : `
-        <button class="header-login-btn" onclick="login()">
-            <i data-lucide="user"></i>
-        </button>
-    `;
+        if (fabUserText && fabUserAction) {
+            fabUserText.textContent = '로그아웃';
+            fabUserAction.onclick = () => { logout(); toggleFab(); };
+            const icon = fabUserAction.querySelector('i');
+            if (icon) icon.setAttribute('data-lucide', 'log-out');
+        }
+    } else {
+        const loginBtnHtml = `
+            <button class="btn-login-full glass" onclick="login()">
+                <i data-lucide="log-in"></i>
+                <span>로그인하여 시작하기</span>
+            </button>
+        `;
+        const mobileLoginHtml = `
+            <button class="header-login-btn" onclick="login()">
+                <i data-lucide="user"></i>
+            </button>
+        `;
+        userSection.innerHTML = loginBtnHtml;
+        if (mobileUserSection) mobileUserSection.innerHTML = mobileLoginHtml;
 
-    if (section) section.innerHTML = userHtml;
-    if (headerSection) headerSection.innerHTML = headerUserHtml;
-    
-    // 모바일 하단바 아이콘 강제 생성
-    if (window.lucide) {
-        lucide.createIcons();
-        // 렌더링 직후 아이콘이 누락되는 경우를 대비해 한 번 더 시도
-        setTimeout(() => lucide.createIcons(), 50);
+        if (fabUserText && fabUserAction) {
+            fabUserText.textContent = '로그인';
+            fabUserAction.onclick = () => { login(); toggleFab(); };
+            const icon = fabUserAction.querySelector('i');
+            if (icon) icon.setAttribute('data-lucide', 'user');
+        }
     }
+    if (window.lucide) lucide.createIcons();
 }
 
 let unsubscribeSync = null;
@@ -218,6 +247,8 @@ function loadLocal() {
         try { 
             const parsed = JSON.parse(saved);
             state = { ...state, ...parsed }; 
+            // 앱 실행 시에는 항상 오늘 날짜를 우선으로 보여줌
+            state.viewDate = getTodayStr();
             state.calendarDate = new Date(); 
             state.currentView = 'dashboard';
         } catch (e) { }
@@ -344,6 +375,22 @@ function calculatePercent(quests) {
 
 function checkResets() {
     const now = new Date();
+    const todayStr = getTodayStr();
+    const resetHour = state.settings ? (state.settings.resetHour || 0) : 0;
+
+    // 만약 자정이 지나 날짜가 바뀌었다면 뷰 날짜도 자동 갱신
+    if (state.lastResetDate !== todayStr && now.getHours() >= resetHour) {
+        state.viewDate = todayStr;
+        state.lastResetDate = todayStr;
+        
+        state.quests.forEach(q => {
+            q.completed = false;
+        });
+        
+        render();
+        save();
+    }
+
     let last = state.lastResetDate ? new Date(state.lastResetDate) : null;
     
     // 만약 마지막 리셋 기록이 없거나 너무 오래전(30일 이상)이면 
@@ -355,11 +402,11 @@ function checkResets() {
 
     // 마지막 리셋 체크 시점부터 현재까지의 모든 '새벽 6시' 시점을 조사
     let checkDate = new Date(last);
-    checkDate.setHours(6, 0, 0, 0);
+    checkDate.setHours(resetHour, 0, 0, 0);
     if (last >= checkDate) checkDate.setDate(checkDate.getDate() + 1);
 
     const todayReset = new Date(now);
-    todayReset.setHours(6, 0, 0, 0);
+    todayReset.setHours(resetHour, 0, 0, 0);
     if (now < todayReset) todayReset.setDate(todayReset.getDate() - 1);
 
     let resetCount = 0;
@@ -530,7 +577,6 @@ function isSameWeek(d1, d2) {
 
 // --- 6. Rendering ---
 function render() {
-    try {
         // 모든 로고 텍스트 업데이트 (사이드바, 모바일 헤더 등 전체)
         const logos = document.querySelectorAll('.logo-text');
         logos.forEach(logo => {
@@ -539,12 +585,26 @@ function render() {
         document.title = state.appTitle || 'Quest Master';
 
         const views = ['dashboard', 'calendar', 'games', 'notes', 'gallery', 'log', 'settings'];
+        const viewNames = {
+            'dashboard': '숙제',
+            'calendar': '캘린더',
+            'games': '탭 관리',
+            'notes': '노트',
+            'gallery': '갤러리',
+            'log': '히스토리 로그',
+            'settings': '데이터 관리'
+        };
+
         views.forEach(v => {
             const btn = document.getElementById(`nav-${v}`);
             const mobileBtn = document.querySelector(`.mobile-bottom-nav [data-action="nav-${v}"]`);
             const view = document.getElementById(`${v}-view`);
             
-            if (btn) btn.classList.toggle('active', state.currentView === v);
+            if (btn) {
+                btn.classList.toggle('active', state.currentView === v);
+                const span = btn.querySelector('span');
+                if (span) span.textContent = viewNames[v];
+            }
             if (mobileBtn) mobileBtn.classList.toggle('active', state.currentView === v);
             if (view) view.classList.toggle('hidden', state.currentView !== v);
         });
@@ -557,11 +617,58 @@ function render() {
         else if (state.currentView === 'log') renderLog();
         else if (state.currentView === 'settings') renderSettings();
 
+        // 대시보드 전용 헤더 액션 및 동적 헤더 노출 제어
+        const headerActions = document.querySelector('.header-actions');
+        const dynamicHeader = document.querySelector('.dashboard-dynamic-header');
+        const isDashboard = state.currentView === 'dashboard';
+
+        if (headerActions) headerActions.style.display = isDashboard ? 'flex' : 'none';
+        if (dynamicHeader) dynamicHeader.classList.toggle('show', isDashboard);
+
         updateStats();
-        updateUserUI();
+        renderUserSection();
+        
+        // 앱 로고 아이콘 반영
+        const logoIconArea = document.querySelector('.logo i');
+        if (logoIconArea && state.appIcon) {
+            const logoImg = document.createElement('img');
+            logoImg.src = state.appIcon;
+            logoImg.className = 'app-logo-img';
+            logoIconArea.replaceWith(logoImg);
+        } else if (state.appIcon) {
+            const existingImg = document.querySelector('.app-logo-img');
+            if (existingImg) existingImg.src = state.appIcon;
+        }
+
         if (window.lucide) lucide.createIcons();
-    } catch (e) { }
 }
+
+window.triggerGameIconUpload = function(gameName) {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.onchange = (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                if (!state.gameIcons) state.gameIcons = {};
+                state.gameIcons[gameName] = event.target.result;
+                addLog('edit', `${gameName} 탭 아이콘 변경됨`);
+                save(); render();
+            };
+            reader.readAsDataURL(file);
+        }
+    };
+    input.click();
+};
+
+window.toggleFab = function() {
+    const container = document.getElementById('mobile-fab-container');
+    if (container) {
+        container.classList.toggle('active');
+    }
+};
 
 
 function renderCalendar() {
@@ -767,26 +874,107 @@ function deleteScreenshot(id) {
 }
 
 function renderNotes() {
+    const listContainer = document.getElementById('notes-list');
+    const emptyState = document.getElementById('editor-empty-state');
+    const activeState = document.getElementById('editor-active-state');
     const textarea = document.getElementById('notes-textarea');
-    if (textarea) {
-        textarea.value = state.notes || '';
-        
-        // 중복 리스너 방지를 위해 한 번만 등록
+    const titleInput = document.getElementById('note-title-input');
+    const saveStatus = document.getElementById('note-save-status');
+
+    if (!listContainer) return;
+
+    // 데이터 호환성: 기존 문자열 형태의 notes를 배열로 변환
+    if (typeof state.notes === 'string') {
+        const oldContent = state.notes;
+        state.notes = [{
+            id: Date.now(),
+            title: '이전 메모',
+            content: oldContent,
+            date: new Date().toISOString()
+        }];
+        save();
+    }
+    if (!state.notes) state.notes = [];
+
+    // 리스트 렌더링
+    listContainer.innerHTML = state.notes.length === 0 
+        ? '<p class="empty-msg-sm">노트가 없습니다.</p>' 
+        : state.notes.map(note => `
+            <div class="note-item ${state.activeNoteId === note.id ? 'active' : ''}" onclick="selectNote(${note.id})">
+                <div class="note-item-title">${note.title || '제목 없음'}</div>
+                <div class="note-item-date">${new Date(note.date).toLocaleDateString()}</div>
+            </div>
+        `).join('');
+
+    // 에디터 상태 제어
+    const activeNote = state.notes.find(n => n.id === state.activeNoteId);
+    if (activeNote) {
+        emptyState.classList.add('hidden');
+        activeState.classList.remove('hidden');
+        textarea.value = activeNote.content || '';
+        titleInput.value = activeNote.title || '';
+
+        // 리스너 등록 (한 번만)
         if (!textarea.dataset.listener) {
             textarea.addEventListener('input', (e) => {
-                state.notes = e.target.value;
-                const status = document.getElementById('note-status');
-                if (status) status.textContent = '저장 중...';
-                
-                // 디바운싱: 500ms 후 저장
-                clearTimeout(textarea.timer);
-                textarea.timer = setTimeout(() => {
+                const note = state.notes.find(n => n.id === state.activeNoteId);
+                if (note) {
+                    note.content = e.target.value;
+                    note.date = new Date().toISOString();
+                    saveStatus.textContent = '저장 중...';
+                    clearTimeout(textarea.timer);
+                    textarea.timer = setTimeout(() => {
+                        save();
+                        addLog('note', `메모 업데이트됨: ${note.title || '제목 없음'}`);
+                        saveStatus.textContent = '자동 저장됨';
+                        renderNotes();
+                    }, 800);
+                }
+            });
+            titleInput.addEventListener('input', (e) => {
+                const note = state.notes.find(n => n.id === state.activeNoteId);
+                if (note) {
+                    note.title = e.target.value;
+                    note.date = new Date().toISOString();
                     save();
-                    if (status) status.textContent = '자동 저장됨';
-                }, 500);
+                    renderNotes();
+                }
             });
             textarea.dataset.listener = "true";
         }
+    } else {
+        emptyState.classList.remove('hidden');
+        activeState.classList.add('hidden');
+    }
+    if (window.lucide) lucide.createIcons();
+}
+
+window.addNote = function() {
+    const newNote = {
+        id: Date.now(),
+        title: '',
+        content: '',
+        date: new Date().toISOString()
+    };
+    state.notes.unshift(newNote);
+    state.activeNoteId = newNote.id;
+    addLog('note', '새 메모가 추가되었습니다.');
+    save();
+    renderNotes();
+}
+
+window.selectNote = function(id) {
+    state.activeNoteId = id;
+    renderNotes();
+}
+
+window.deleteActiveNote = function() {
+    if (confirm("이 노트를 삭제하시겠습니까?")) {
+        state.notes = state.notes.filter(n => n.id !== state.activeNoteId);
+        state.activeNoteId = null;
+        addLog('note', '메모가 삭제되었습니다.');
+        save();
+        renderNotes();
     }
 }
 
@@ -796,16 +984,6 @@ function renderSettings() {
     
     view.innerHTML = `
         <div class="section-header"><h2>데이터 관리</h2></div>
-        <main class="main-content">
-            <header class="top-header">
-                <div class="mobile-logo">
-                    <i data-lucide="layout-grid"></i>
-                    <span class="logo-text">Quest Master</span>
-                </div>
-                <div class="header-user-section-settings">
-                    <!-- Mobile Login UI Settings View -->
-                </div>
-            </header>
         <div class="settings-container">
             <!-- 일반 설정 -->
             <div class="settings-card">
@@ -851,8 +1029,18 @@ function renderSettings() {
                 </div>
             </div>
 
-            <!-- Firebase 설정 변경 (고급) -->
-            <div class="settings-card">
+                <div class="stat-header">
+                    <h3><i data-lucide="image"></i> 사이트 아이콘 설정</h3>
+                </div>
+                <div class="flex-row" style="gap: 15px; align-items: center; margin-bottom: 1rem;">
+                    <div class="site-icon-preview glass">
+                        <img src="${state.appIcon || 'icon.png'}" id="current-site-icon" style="width: 50px; height: 50px; border-radius: 10px; object-fit: cover;">
+                    </div>
+                    <button class="btn btn-primary btn-sm" onclick="document.getElementById('input-site-icon').click()">
+                        <i data-lucide="upload"></i> 아이콘 변경
+                    </button>
+                    <input type="file" id="input-site-icon" hidden accept="image/*" onchange="updateSiteIcon(this)">
+                </div>
                 <div class="stat-header">
                     <h3><i data-lucide="database"></i> 클라우드 서버 설정 (Firebase)</h3>
                     <span class="badge ${localStorage.getItem('QM_CUSTOM_CONFIG') ? 'badge-primary' : 'badge-dim'}" style="font-size: 0.7rem;">
@@ -861,25 +1049,32 @@ function renderSettings() {
                 </div>
                 <div style="background: rgba(0,0,0,0.2); padding: 10px; border-radius: 8px; margin-bottom: 1rem; font-size: 0.8rem;">
                     <div style="color: var(--text-dim); margin-bottom: 4px;">현재 연결된 프로젝트:</div>
-                    <code style="color: var(--primary); font-weight: 700;">${firebase.app().options.projectId}</code>
+                    <code style="color: var(--primary); font-weight: 700;">${(firebase.apps.length > 0) ? firebase.app().options.projectId : '연결 중...'}</code>
                 </div>
                 <p style="font-size: 0.8rem; color: var(--text-dim); margin-bottom: 1rem;">본인의 Firebase 프로젝트 키를 입력하여 서버를 교체할 수 있습니다.</p>
                 <textarea id="input-fb-config" class="quest-input" style="width: 100%; height: 100px; font-family: monospace; font-size: 0.75rem;" placeholder='{"apiKey": "...", "authDomain": "...", ...}'></textarea>
                 <div style="display: flex; gap: 8px; margin-top: 10px;">
                     <button class="btn btn-primary btn-sm" id="btn-save-fb" style="flex: 1;">설정 저장 및 재시작</button>
-                    <button class="btn btn-danger btn-sm" id="btn-reset-fb">초기화</button>
+                    <button class="btn-reset-action btn-sm" id="btn-reset-fb"><i data-lucide="refresh-ccw"></i> 초기화</button>
                 </div>
             </div>
 
             <!-- 위험 구역 -->
             <div class="settings-card danger-zone">
-                <h3 style="color: #ef4444;"><i data-lucide="alert-circle"></i> 위험 구역</h3>
-                <div class="flex-row" style="justify-content: space-between; align-items: center;">
+                <h3 style="color: #f43f5e; margin-bottom: 0.5rem;"><i data-lucide="alert-circle"></i> 위험 구역</h3>
+                <div style="display: flex; flex-direction: column; gap: 20px;">
                     <div>
-                        <div style="font-weight: 600; font-size: 0.9rem;">전체 데이터 초기화</div>
-                        <div style="font-size: 0.8rem; color: var(--text-dim);">모든 숙제와 과거 기록을 삭제합니다. 이 작업은 되돌릴 수 없습니다.</div>
+                        <div style="font-weight: 700; font-size: 1.1rem; color: var(--text-bright); margin-bottom: 8px;">전체 데이터 초기화</div>
+                        <div style="font-size: 0.9rem; color: var(--text-dim); line-height: 1.6; max-width: 500px;">
+                            모든 숙제와 과거 기록을 삭제합니다. 이 작업은 되돌릴 수 없습니다. 
+                            데이터를 초기화하기 전에 백업을 생성하는 것을 권장합니다.
+                        </div>
                     </div>
-                    <button class="btn btn-danger" id="btn-clear-all">초기화 실행</button>
+                    <div style="margin-top: 10px;">
+                        <button class="btn-reset-action" id="btn-clear-all" style="padding: 12px 24px; font-size: 1rem;">
+                            <i data-lucide="trash-2"></i> 초기화 실행
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -889,6 +1084,7 @@ function renderSettings() {
 
 function renderDashboard() {
     updateDate();
+    renderMiniCalendarStrip(); // 주간 달력 스트립 렌더링
     const daily = document.getElementById('daily-quest-list');
     const weekly = document.getElementById('weekly-quest-list');
     const displayDate = document.getElementById('display-dashboard-date');
@@ -915,7 +1111,6 @@ function renderDashboard() {
     filteredQuests.forEach(q => {
         const isDone = isCompletedInCycle(q, targetDate);
         const dday = getDaysUntilReset(q);
-        const isUrgent = !isDone && dday >= 0 && dday <= 1 && targetDate === getTodayStr();
         
         const card = document.createElement('div');
         card.className = `quest-card glass ${isDone ? 'completed' : ''}`;
@@ -934,7 +1129,7 @@ function renderDashboard() {
                 ${isDone ? '<i data-lucide="check"></i>' : ''}
             </div>
             <div class="quest-content" data-action="edit-quest" data-id="${q.id}">
-                <div class="quest-title">${q.title} ${isUrgent ? '<span class="urgent-tag">🔥 빨리!</span>' : ''}</div>
+                <div class="quest-title">${q.title}</div>
                 <div class="quest-meta">${q.game} | ${getRepeatText(q)} ${q.type === 'once' ? `(${formatDate(q.createdAt)} 등록)` : `<span class="reset-dday">[D-${dday}]</span>`} ${endInfo}</div>
             </div>
             <div class="quest-actions">
@@ -975,18 +1170,40 @@ function renderGames() {
     if (!list) return;
     list.innerHTML = state.games.map(g => {
         const qCount = state.quests.filter(q => q.game === g).length;
+        const icon = state.gameIcons && state.gameIcons[g];
         return `
             <div class="char-card glass">
-                <div class="char-avatar">${g.charAt(0)}</div>
+                <div class="char-avatar">
+                    ${icon ? `<img src="${icon}" class="char-icon-img">` : g.charAt(0)}
+                </div>
                 <div class="char-name">${g}</div>
                 <div class="char-count">숙제 ${qCount}개</div>
                 <div style="display: flex; gap: 5px; margin-top: 10px;">
-                   <button class="action-btn" data-action="edit-game" data-name="${g}"><i data-lucide="edit-3"></i></button>
-                   <button class="action-btn" data-action="delete-game" data-name="${g}"><i data-lucide="x"></i></button>
+                   <label class="action-btn" title="아이콘 변경">
+                       <i data-lucide="image"></i>
+                       <input type="file" hidden accept="image/*" onchange="uploadGameIcon('${g}', this)">
+                   </label>
+                   <button class="action-btn" data-action="edit-game" data-name="${g}" title="이름 수정"><i data-lucide="edit-3"></i></button>
+                   <button class="action-btn" data-action="delete-game" data-name="${g}" title="삭제"><i data-lucide="x"></i></button>
                 </div>
             </div>
         `;
     }).join('');
+    if (window.lucide) lucide.createIcons();
+}
+
+window.uploadGameIcon = function(gameName, input) {
+    const file = input.files[0];
+    if (file) {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            if (!state.gameIcons) state.gameIcons = {};
+            state.gameIcons[gameName] = e.target.result;
+            save();
+            renderGames();
+        };
+        reader.readAsDataURL(file);
+    }
 }
 
 function getRepeatText(q) {
@@ -1064,19 +1281,20 @@ function showHistoryDetail(dateStr) {
     h.percent = calculatePercent(h.quests);
     const allDone = h.quests.length > 0 && h.quests.every(q => q.completed);
 
-    dateTitle.textContent = `${dateStr}`;
-    percentBadge.innerHTML = `
-        <div class="hist-action-row">
-            <button class="btn-hist-add" onclick="renderForm('${dateStr}'); document.getElementById('modal-container').classList.remove('hidden');">
-                <i data-lucide="plus"></i> 추가
+    dateTitle.textContent = dateStr;
+    percentBadge.textContent = `${h.percent}%`;
+    
+    const actionsContainer = document.getElementById('history-actions-container');
+    if (actionsContainer) {
+        actionsContainer.innerHTML = `
+            <button class="btn-hist-action" onclick="renderForm('${dateStr}'); document.getElementById('modal-container').classList.remove('hidden');" title="추가">
+                <i data-lucide="plus"></i>
             </button>
-            <button class="btn-hist-complete ${allDone ? 'all-done' : ''}" onclick="completeAllOnDate('${dateStr}')">
+            <button class="btn-hist-action ${allDone ? 'all-done' : ''}" onclick="completeAllOnDate('${dateStr}')" title="${allDone ? '완료 취소' : '모두 완료'}">
                 <i data-lucide="${allDone ? 'rotate-ccw' : 'check-check'}"></i>
-                ${allDone ? '완료 취소' : '모두 완료'}
             </button>
-            <span class="hist-percent-badge">${h.percent}%</span>
-        </div>
-    `;
+        `;
+    }
     list.innerHTML = h.quests.map((q, idx) => `
         <div class="history-item">
             <div class="hist-info"><span>[${q.game}] ${q.title}</span></div>
@@ -1118,22 +1336,60 @@ function completeAllOnDate(dateStr) {
 
 function updateStats() {
     const todayStr = getTodayStr();
+    const targetDate = state.viewDate || todayStr;
+    
+    // 현재 필터와 날짜에 맞는 숙제들 추출
     let visible = state.quests.filter(q => {
         if (state.activeGame !== '전체' && q.game !== state.activeGame) return false;
-        return isQuestActiveOnDate(q, todayStr);
+        return isQuestActiveOnDate(q, targetDate);
     });
 
     const total = visible.length;
-    const done = visible.filter(q => q.completed).length;
-    const perc = calculatePercent(visible);
+    // 해당 날짜의 완료 여부를 정확히 체크 (isCompletedInCycle 활용)
+    const done = visible.filter(q => isCompletedInCycle(q, targetDate)).length;
+    const perc = total > 0 ? Math.round((done / total) * 100) : 0;
     
     const fill = document.getElementById('stat-fill');
     const percText = document.getElementById('stat-percent');
-    const remains = document.getElementById('stat-remains');
 
     if (fill) fill.style.width = perc + '%';
     if (percText) percText.textContent = perc + '%';
-    if (remains) remains.textContent = total - done;
+}
+
+// 주간 달력 스트립 렌더링 함수 (타임라인 스타일)
+function renderMiniCalendarStrip() {
+    const container = document.getElementById('mini-calendar-strip');
+    if (!container) return;
+
+    const targetDate = new Date(state.viewDate || getTodayStr());
+    const todayStr = getTodayStr();
+    const activeDateStr = state.viewDate || todayStr;
+    
+    container.innerHTML = '';
+
+    for (let i = -3; i <= 3; i++) {
+        const d = new Date(targetDate);
+        d.setDate(d.getDate() + i);
+        const dateStr = d.toISOString().split('T')[0];
+        const isToday = dateStr === todayStr;
+        const isActive = dateStr === activeDateStr;
+        
+        const activeQuests = state.quests.filter(q => isQuestActiveOnDate(q, dateStr));
+        const done = activeQuests.filter(q => isCompletedInCycle(q, dateStr)).length;
+        const hasData = activeQuests.length > 0;
+        const isPerfect = hasData && done === activeQuests.length;
+        
+        const item = document.createElement('div');
+        item.className = `timeline-item ${isActive ? 'active' : ''} ${isToday ? 'is-today' : ''} ${isPerfect ? 'perfect' : ''}`;
+        item.onclick = () => setDashboardDate(dateStr);
+        
+        item.innerHTML = `
+            <span class="timeline-day">${d.toLocaleDateString('ko-KR', { weekday: 'short' })}</span>
+            <span class="timeline-num">${d.getDate()}</span>
+            ${hasData ? `<div class="timeline-indicator ${isPerfect ? 'success' : ''}"></div>` : ''}
+        `;
+        container.appendChild(item);
+    }
 }
 
 function updateDate() {
@@ -1141,21 +1397,6 @@ function updateDate() {
     if (el) el.textContent = new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
 }
 
-function updateUserUI() {
-    const container = document.getElementById('user-section');
-    if (!container) return;
-    if (state.user) {
-        container.innerHTML = `
-            <div class="user-card glass">
-                <img src="${state.user.photoURL}" alt="" class="avatar">
-                <div class="user-info"><div class="user-name">${state.user.displayName}</div><div class="user-status">Cloud Sync</div></div>
-                <div class="user-actions"><button class="action-btn" id="btn-sync"><i data-lucide="refresh-cw"></i></button><button class="logout-btn" id="btn-logout"><i data-lucide="log-out"></i></button></div>
-            </div>
-        `;
-    } else {
-        container.innerHTML = `<button class="login-btn" id="btn-login"><i data-lucide="log-in"></i><span>Google 로그인</span></button>`;
-    }
-}
 
 // --- 7. Event Handling ---
 function setupEventListeners() {
@@ -1268,6 +1509,10 @@ function setupEventListeners() {
             const old = target.dataset.name;
             const n = prompt("게임 이름 변경:", old);
             if (n && n !== old) {
+                if (state.gameIcons && state.gameIcons[old]) {
+                    state.gameIcons[n] = state.gameIcons[old];
+                    delete state.gameIcons[old];
+                }
                 state.games = state.games.map(g => g === old ? n : g);
                 state.quests.forEach(q => { if (q.game === old) q.game = n; });
                 Object.values(state.history).forEach(h => h.quests.forEach(q => { if (q.game === old) q.game = n; }));
@@ -1282,8 +1527,10 @@ function setupEventListeners() {
         if (action === 'delete-game') {
             const name = target.dataset.name;
             if (confirm(`'${name}' 게임과 연관된 모든 숙제를 삭제하시겠습니까?`)) {
+                addLog('delete', `게임 삭제됨: ${name}`);
                 state.quests = state.quests.filter(q => q.game !== name);
                 state.games = state.games.filter(g => g !== name);
+                if (state.gameIcons) delete state.gameIcons[name];
                 render(); save();
             }
         }
@@ -1293,6 +1540,7 @@ function setupEventListeners() {
                 state.quests = [];
                 state.history = {};
                 state.games = [];
+                addLog('info', '모든 데이터가 초기화되었습니다.');
                 render(); save();
                 showToast("모든 데이터가 초기화되었습니다.", "info");
             }
@@ -1313,6 +1561,7 @@ function setupEventListeners() {
                 games: JSON.parse(JSON.stringify(state.games))
             };
             state.backups.push(snap);
+            addLog('backup', `신규 백업 생성됨: ${snap.name}`);
             save(); render();
             showToast("현재 상태가 백업되었습니다.", "info");
         }
@@ -1332,6 +1581,7 @@ function setupEventListeners() {
                 state.quests = b.quests;
                 state.history = b.history;
                 state.games = b.games;
+                addLog('backup', `백업 데이터 복구 완료 (${b.date})`);
                 render(); save();
                 showToast("데이터가 복구되었습니다.", "info");
             }
@@ -1373,6 +1623,7 @@ function setupEventListeners() {
             a.download = `quest_master_backup_${new Date().toLocaleDateString()}.json`;
             a.click();
             URL.revokeObjectURL(url);
+            addLog('info', '데이터 백업 파일(JSON) 내보내기 완료');
             showToast("데이터 파일이 다운로드되었습니다.", "info");
         }
         if (target.id === 'btn-save-fb') {
@@ -1429,8 +1680,12 @@ function setupEventListeners() {
         return; 
     }
         if (target.id === 'btn-add-game') {
-            const name = prompt("새 게임 이름:");
-            if (name && !state.games.includes(name)) { state.games.push(name); render(); save(); }
+            const name = prompt("새 탭 이름:");
+            if (name && !state.games.includes(name)) { 
+                state.games.push(name); 
+                addLog('add', `새 탭 추가됨: ${name}`);
+                render(); save(); 
+            }
         }
         if (target.id === 'prev-month') { state.calendarDate.setMonth(state.calendarDate.getMonth() - 1); render(); }
         if (target.id === 'next-month') { state.calendarDate.setMonth(state.calendarDate.getMonth() + 1); render(); }
@@ -1487,7 +1742,11 @@ function renderForm(initialDate, editQuest = null) {
         let game = document.getElementById('in-game').value;
         if (game === '_new') {
             const name = prompt("새 게임 이름:");
-            if (name) { state.games.push(name); game = name; } else return;
+            if (name) { 
+                state.games.push(name); 
+                addLog('add', `게임 추가됨: ${name}`);
+                game = name; 
+            } else return;
         }
         const endDateVal = document.getElementById('in-enddate') ? document.getElementById('in-enddate').value : '';
         const formData = { 
@@ -1607,5 +1866,26 @@ window.addEventListener('keydown', (e) => {
         closeLightbox();
     }
 });
+
+window.updateSiteIcon = function(input) {
+    const file = input.files[0];
+    if (file) {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            state.appIcon = e.target.result;
+            let link = document.querySelector("link[rel*='icon']");
+            if (!link) {
+                link = document.createElement('link');
+                link.rel = 'shortcut icon';
+                document.head.appendChild(link);
+            }
+            link.href = e.target.result;
+            save();
+            render();
+            addLog('info', '사이트 아이콘이 변경되었습니다.');
+        };
+        reader.readAsDataURL(file);
+    }
+};
 
 
