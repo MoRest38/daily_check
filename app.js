@@ -149,7 +149,7 @@ async function syncCloud() {
 async function saveCloud() {
     if (!state.user || !db) return;
     try {
-        const { user, calendarDate, backups, ...toSave } = state;
+        const { user, calendarDate, ...toSave } = state; // backups 제외 제거
         toSave.updatedAt = Date.now();
         await db.collection('users').doc(state.user.uid).set(toSave, { merge: true });
     } catch (e) {
@@ -448,8 +448,11 @@ function render() {
         const views = ['dashboard', 'calendar', 'games', 'settings'];
         views.forEach(v => {
             const btn = document.getElementById(`nav-${v}`);
+            const mobileBtn = document.querySelector(`.mobile-bottom-nav [data-action="nav-${v}"]`);
             const view = document.getElementById(`${v}-view`);
+            
             if (btn) btn.classList.toggle('active', state.currentView === v);
+            if (mobileBtn) mobileBtn.classList.toggle('active', state.currentView === v);
             if (view) view.classList.toggle('hidden', state.currentView !== v);
         });
 
@@ -809,6 +812,12 @@ function setupEventListeners() {
         if (!target) return;
         const action = target.dataset.action;
         const id = target.dataset.id;
+
+        if (action && action.startsWith('nav-')) {
+            state.currentView = action.replace('nav-', '');
+            render();
+            window.scrollTo(0,0);
+        }
 
         if (action === 'toggle') {
             const q = state.quests.find(x => x.id == id);

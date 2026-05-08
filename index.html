@@ -198,6 +198,26 @@
     <div id="error-toast" style="position: fixed; bottom: 20px; right: 20px; background: #f43f5e; color: white; padding: 1rem; border-radius: 8px; display: none; z-index: 9999;"></div>
 
     <!-- Modals -->
+    <!-- Mobile Bottom Navigation -->
+    <nav class="mobile-bottom-nav">
+        <button class="nav-item active" data-action="nav-dashboard">
+            <i data-lucide="layout-grid"></i>
+            <span>홈</span>
+        </button>
+        <button class="nav-item" data-action="nav-calendar">
+            <i data-lucide="calendar"></i>
+            <span>달력</span>
+        </button>
+        <button class="nav-item" data-action="nav-games">
+            <i data-lucide="gamepad-2"></i>
+            <span>게임</span>
+        </button>
+        <button class="nav-item" data-action="nav-settings">
+            <i data-lucide="settings"></i>
+            <span>관리</span>
+        </button>
+    </nav>
+
     <div id="modal-container" class="modal-overlay hidden">
         <div class="modal glass">
             <div class="modal-header">
