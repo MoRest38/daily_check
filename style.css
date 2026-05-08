@@ -1025,15 +1025,17 @@ body {
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 4px;
-    font-size: 10px;
+    gap: 3px;
+    font-size: 9px;
+    padding: 2px;
     cursor: pointer;
     -webkit-tap-highlight-color: transparent;
+    overflow: hidden;
 }
 
 .mobile-bottom-nav .nav-item i {
-    width: 20px;
-    height: 20px;
+    width: 18px;
+    height: 18px;
 }
 
 .mobile-bottom-nav .nav-item.active {
@@ -1738,7 +1740,7 @@ body {
 
 /* --- Mobile Fixes --- */
 @media (max-width: 768px) {
-    #notes-view {
+    #notes-view:not(.hidden) {
         height: calc(100vh - 180px) !important;
         display: flex !important;
     }
