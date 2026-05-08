@@ -1740,20 +1740,51 @@ body {
 
 /* --- Mobile Fixes --- */
 @media (max-width: 768px) {
-    #notes-view:not(.hidden) {
-        height: calc(100vh - 180px) !important;
-        display: flex !important;
+    /* 탭 전환 시 다른 탭이 숨겨지지 않는 문제 해결 */
+    .view.hidden {
+        display: none !important;
     }
+
+    #notes-view:not(.hidden),
+    #gallery-view:not(.hidden),
+    #log-view:not(.hidden),
+    #calendar-view:not(.hidden),
+    #dashboard-view:not(.hidden),
+    #games-view:not(.hidden),
+    #settings-view:not(.hidden) {
+        display: flex !important;
+        flex-direction: column;
+        min-height: calc(100vh - 160px);
+        padding-bottom: 80px;
+    }
+
     .notes-container {
         flex: 1;
-        min-height: auto !important;
-        margin-bottom: 20px;
+        min-height: 300px !important;
     }
-    #notes-textarea {
-        min-height: 200px;
+
+    /* 하단 바 아이콘 및 텍스트 최적화 */
+    .mobile-bottom-nav {
+        gap: 0;
+        padding: 5px 2px;
     }
-    .gallery-grid {
-        grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-        gap: 0.8rem;
+
+    .mobile-bottom-nav .nav-item {
+        flex: 1;
+        min-width: 0; /* 찌그러짐 방지 */
+        padding: 5px 0;
+    }
+
+    .mobile-bottom-nav .nav-item i {
+        width: 22px;
+        height: 22px;
+        margin-bottom: 2px;
+    }
+
+    .mobile-bottom-nav .nav-item span {
+        font-size: 10px;
+        white-space: nowrap; /* 줄바꿈 방지 */
+        transform: scale(0.85);
+        transform-origin: center;
     }
 }
