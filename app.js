@@ -333,14 +333,15 @@ function showToast(msg, type = "error") {
     const toast = document.getElementById('error-toast');
     if (toast) {
         toast.textContent = msg;
-        toast.style.background = type === "info" ? "rgba(59, 130, 246, 0.95)" : "rgba(239, 68, 68, 0.95)";
-        toast.style.display = 'block'; 
-        toast.classList.remove('hidden');
+        toast.style.background = type === "info" ? "rgba(59, 130, 246, 0.98)" : "rgba(239, 68, 68, 0.98)";
         
+        toast.classList.add('show');
         setTimeout(() => {
-            toast.classList.add('hidden');
-            setTimeout(() => { if (toast) toast.style.display = 'none'; }, 300);
+            toast.classList.remove('show');
         }, 3000);
+    } else {
+        // 백업용 (만약 요소가 없으면 alert이라도 띄움)
+        console.log("Toast:", msg);
     }
 }
 

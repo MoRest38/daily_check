@@ -860,6 +860,24 @@ body {
     }
 }
 
+/* Toast Notification */
+#error-toast {
+    position: fixed;
+    bottom: calc(80px + env(safe-area-inset-bottom));
+    left: 50%;
+    transform: translateX(-50%) translateY(100px);
+    padding: 12px 24px;
+    border-radius: 8px;
+    color: white;
+    font-weight: 500;
+    z-index: 999999;
+    transition: transform 0.3s ease;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+}
+#error-toast.show {
+    transform: translateX(-50%) translateY(0);
+}
+
 /* Reset Timer & Urgency */
 .urgent-tag {
     background: linear-gradient(135deg, #ff4d4d, #f97316);
@@ -1066,3 +1084,29 @@ body {
     .stats-grid { grid-template-columns: 1fr; }
     .modal { width: 95%; }
 }
+
+/* --- Final Toast Solution --- */
+.toast-final {
+    position: fixed !important;
+    bottom: 100px !important;
+    left: 50% !important;
+    transform: translateX(-50%) translateY(150%) !important;
+    background: rgba(59, 130, 246, 0.98) !important;
+    color: white !important;
+    padding: 12px 24px !important;
+    border-radius: 50px !important;
+    font-weight: 700 !important;
+    z-index: 9999999 !important;
+    transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) !important;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5) !important;
+    pointer-events: none !important;
+    white-space: nowrap !important;
+    opacity: 0 !important;
+    display: block !important;
+}
+
+.toast-final.show {
+    transform: translateX(-50%) translateY(0) !important;
+    opacity: 1 !important;
+}
+
