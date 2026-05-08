@@ -986,26 +986,31 @@ body {
     bottom: 0;
     left: 0;
     width: 100%;
-    height: 65px;
-    background: rgba(30, 41, 59, 0.95);
+    height: calc(65px + env(safe-area-inset-bottom));
+    padding-bottom: env(safe-area-inset-bottom);
+    background: rgba(15, 23, 42, 0.98);
     backdrop-filter: blur(20px);
-    border-top: 1px solid var(--border);
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
     justify-content: space-around;
     align-items: center;
-    z-index: 10000;
+    z-index: 99999;
+    box-shadow: 0 -5px 20px rgba(0, 0, 0, 0.5);
 }
 
 .mobile-bottom-nav .nav-item {
+    flex: 1;
+    height: 100%;
     background: none;
     border: none;
     color: var(--text-dim);
     display: flex;
     flex-direction: column;
     align-items: center;
+    justify-content: center;
     gap: 4px;
     font-size: 10px;
     cursor: pointer;
-    transition: var(--transition);
+    -webkit-tap-highlight-color: transparent;
 }
 
 .mobile-bottom-nav .nav-item i {

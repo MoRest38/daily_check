@@ -66,9 +66,10 @@ function initFirebase() {
             if (user) {
                 state.user = user;
                 loadLocal(); // 유저별 데이터 로드
-                await syncCloud();
+                setupRealtimeSync(); // 실시간 동기화 시작
                 checkResets(); // 데이터 로드 후 리셋 확인 필수
             } else {
+                if (unsubscribeSync) unsubscribeSync(); // 리스너 해제
                 // 로그아웃 시 데이터 초기화
                 state.user = null;
                 state.quests = [];
@@ -125,43 +126,64 @@ function updateUserUI() {
     if (section) section.innerHTML = userHtml;
     if (headerSection) headerSection.innerHTML = headerUserHtml;
     
-    if (window.lucide) lucide.createIcons();
+    // 모바일 하단바 아이콘 강제 생성
+    if (window.lucide) {
+        lucide.createIcons();
+        // 렌더링 직후 아이콘이 누락되는 경우를 대비해 한 번 더 시도
+        setTimeout(() => lucide.createIcons(), 50);
+    }
+}
+
+let unsubscribeSync = null;
+function setupRealtimeSync() {
+    if (!state.user || !db) return;
+    if (unsubscribeSync) unsubscribeSync();
+
+    unsubscribeSync = db.collection('users').doc(state.user.uid).onSnapshot(doc => {
+        if (doc.exists) {
+            const cloud = doc.data();
+            // 클라우드 데이터가 내 로컬보다 최신인 경우에만 자동 업데이트
+            if ((cloud.updatedAt || 0) > (state.updatedAt || 0)) {
+                console.log("Cloud update detected. Syncing silently...");
+                const { user, calendarDate, backups, ...toSync } = cloud;
+                state = { 
+                    ...state, 
+                    ...toSync,
+                    backups: cloud.backups || state.backups // 백업도 포함
+                };
+                localStorage.setItem(getStorageKey(), JSON.stringify(toSync));
+                render();
+            }
+        }
+    }, err => {
+        console.warn("Real-time sync restricted.");
+    });
 }
 
 async function syncCloud() {
-    if (!state.user || !db) return;
-    try {
-        const doc = await db.collection('users').doc(state.user.uid).get();
-        if (doc.exists) {
-            const cloud = doc.data();
-            if ((cloud.updatedAt || 0) > (state.updatedAt || 0)) {
-                if (confirm("클라우드에 최신 데이터가 있습니다. 불러올까요?")) {
-                    state = { ...state, ...cloud, user: state.user };
-                    save(); render();
-                }
-            } else if ((state.updatedAt || 0) > (cloud.updatedAt || 0)) {
-                saveCloud();
-            }
-        } else { saveCloud(); }
-    } catch (e) { }
+    // 기존 syncCloud는 setupRealtimeSync가 대신하므로 비워두거나 초기 1회용으로 사용
+    setupRealtimeSync();
 }
 
 async function saveCloud() {
     if (!state.user || !db) return;
     try {
-        const { user, calendarDate, ...toSave } = state; // backups 제외 제거
-        toSave.updatedAt = Date.now();
+        const { user, calendarDate, ...toSave } = state;
+        // saveCloud는 현재 state에 기록된 updatedAt을 그대로 서버에 보냅니다. (Date.now() 사용 금지)
         await db.collection('users').doc(state.user.uid).set(toSave, { merge: true });
-    } catch (e) {
-        console.warn("Cloud Sync Restricted: Read-only mode for non-admin.");
-    }
+    } catch (e) { }
 }
 
 // --- 5. Core Logic ---
-function save() {
-    if (!state.user) return; // 로그인 안하면 저장 안함 (게스트 모드 방지)
+function save(isSyncAction = false) {
+    if (!state.user) return;
+    
+    // 사용자가 직접 수정하거나 리셋이 발생한 경우에만 시간을 새로 찍습니다.
+    if (!isSyncAction) {
+        state.updatedAt = Date.now();
+    }
+
     const { calendarDate, backups, ...toSave } = state;
-    toSave.updatedAt = Date.now();
     localStorage.setItem(getStorageKey(), JSON.stringify(toSave));
     localStorage.setItem(getBackupKey(), JSON.stringify(state.backups));
     saveCloud();
