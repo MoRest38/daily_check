@@ -277,9 +277,8 @@ function syncQuestsToHistoryFromDate(startDateStr) {
 function isQuestActiveOnDate(q, dateStr) {
     if (!q.createdAt) return true;
     if (q.type === 'once') {
-        const isStarted = q.createdAt <= dateStr;
-        const isNotDoneYet = !q.completed || q.completedAt >= dateStr;
-        return isStarted && isNotDoneYet;
+        // 일회성 숙제는 오직 '등록한 그 날짜'에만 활성화됩니다.
+        return q.createdAt === dateStr;
     }
     return q.createdAt <= dateStr;
 }
