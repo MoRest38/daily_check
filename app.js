@@ -180,7 +180,7 @@ async function saveCloud() {
 
 // --- 5. Core Logic ---
 function save(isSyncAction = false) {
-    if (!state.user) return;
+    // 로그인 여부와 관계없이 로컬 저장은 수행하여 알림창이 뜨게 합니다.
     
     // 사용자가 직접 수정하거나 리셋이 발생한 경우에만 시간을 새로 찍습니다.
     if (!isSyncAction) {
@@ -332,6 +332,7 @@ function checkResets() {
 function showToast(msg, type = "error") {
     const toast = document.getElementById('error-toast');
     if (toast) {
+        console.log("Toast Displaying:", msg); 
         toast.textContent = msg;
         toast.style.background = type === "info" ? "rgba(59, 130, 246, 0.98)" : "rgba(239, 68, 68, 0.98)";
         
