@@ -749,7 +749,7 @@ function renderGallery() {
 
     list.innerHTML = state.screenshots.map(s => `
         <div class="gallery-item glass">
-            <img src="${s.data}" alt="Screenshot">
+            <img src="${s.data}" alt="Screenshot" onclick="openLightbox('${s.data}')">
             <button class="gallery-delete" onclick="deleteScreenshot(${s.id})">
                 <i data-lucide="trash-2"></i>
             </button>
@@ -1574,5 +1574,38 @@ function handleDragEnd(e) {
     const cards = document.querySelectorAll('.quest-card');
     cards.forEach(c => c.classList.remove('drag-over'));
 }
+
+// --- Lightbox Functions ---
+function openLightbox(src) {
+    const modal = document.getElementById('lightbox-modal');
+    const img = document.getElementById('lightbox-img');
+    if (modal && img) {
+        img.src = src;
+        modal.classList.remove('hidden');
+        // 클릭 시 이벤트 전파 방지 (이미지 클릭해도 안 닫히게)
+        img.onclick = (e) => e.stopPropagation();
+        if (window.lucide) lucide.createIcons();
+    }
+}
+
+function openOriginal(src) {
+    const newTab = window.open();
+    newTab.document.body.innerHTML = `<img src="${src}" style="max-width:100%; cursor:zoom-out;" onclick="window.close()">`;
+    newTab.document.title = "원본 이미지 보기";
+}
+
+function closeLightbox() {
+    const modal = document.getElementById('lightbox-modal');
+    if (modal) {
+        modal.classList.add('hidden');
+    }
+}
+
+// PC용 키보드 단축키 (ESC)
+window.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+        closeLightbox();
+    }
+});
 
 

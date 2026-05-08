@@ -364,6 +364,19 @@
         </button>
     </nav>
 
+    <!-- Lightbox Modal -->
+    <div id="lightbox-modal" class="lightbox-overlay hidden" onclick="closeLightbox()">
+        <div class="lightbox-content">
+            <img id="lightbox-img" src="" alt="Full View">
+            <div class="lightbox-toolbar">
+                <button class="btn-lightbox" onclick="openOriginal(document.getElementById('lightbox-img').src); event.stopPropagation();">
+                    <i data-lucide="external-link"></i> 원본 새창으로 보기
+                </button>
+            </div>
+        </div>
+        <div class="lightbox-close"><i data-lucide="x"></i></div>
+    </div>
+
     <div id="modal-container" class="modal-overlay hidden">
         <div class="modal glass">
             <div class="modal-header">
