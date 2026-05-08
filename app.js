@@ -153,6 +153,10 @@ function setupRealtimeSync() {
                     ...toSync,
                     backups: cloud.backups || state.backups 
                 };
+                
+                // 클라우드 데이터를 받자마자 즉시 전수 조사(청소) 실시
+                syncQuestsToHistoryFromDate();
+                
                 // 로컬 스토리지 업데이트
                 localStorage.setItem(getStorageKey(), JSON.stringify(toSync));
                 localStorage.setItem(getBackupKey(), JSON.stringify(state.backups));
