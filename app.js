@@ -314,8 +314,16 @@ function syncQuestsToHistoryFromDate(startDateStr = null) {
 }
 
 function isQuestActiveOnDate(q, dateStr) {
-    // 생성일이 없는 아주 오래된 숙제는 오늘 날짜를 기본값으로 부여하여 유령화를 방지합니다.
-    const createdAt = q.createdAt || getTodayStr();
+    // 날짜 형식을 안전하게 문자열로 변환 (객체나 타임스탬프 대응)
+    let createdAt = q.createdAt;
+    if (createdAt && typeof createdAt !== 'string') {
+        try {
+            const d = createdAt.toDate ? createdAt.toDate() : new Date(createdAt);
+            createdAt = d.toISOString().split('T')[0];
+        } catch(e) { createdAt = getTodayStr(); }
+    }
+    if (!createdAt) createdAt = getTodayStr();
+
     if (q.type === 'once') {
         return createdAt === dateStr;
     }
@@ -1169,10 +1177,19 @@ function setupEventListeners() {
                 reader.readAsText(file);
             };
         }
-        if (target.id === 'nav-dashboard') { state.currentView = 'dashboard'; render(); }
-        if (target.id === 'nav-calendar') { state.currentView = 'calendar'; render(); }
-        if (target.id === 'nav-games') { state.currentView = 'games'; render(); }
-        if (target.id === 'nav-settings') { state.currentView = 'settings'; render(); }
+
+    // --- 최우선 순위: 탭 전환 처리 ---
+    const navItem = target.closest('.nav-item');
+    if (navItem) {
+        const id = navItem.id || navItem.dataset.action;
+        if (id === 'nav-dashboard') state.currentView = 'dashboard';
+        else if (id === 'nav-calendar') state.currentView = 'calendar';
+        else if (id === 'nav-games') state.currentView = 'games';
+        else if (id === 'nav-notes') state.currentView = 'notes';
+        else if (id === 'nav-settings') state.currentView = 'settings';
+        render();
+        return; 
+    }
         if (target.id === 'btn-add-game') {
             const name = prompt("새 게임 이름:");
             if (name && !state.games.includes(name)) { state.games.push(name); render(); save(); }
