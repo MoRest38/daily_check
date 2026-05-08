@@ -212,6 +212,8 @@ function loadLocal() {
     if (savedBackups) {
         try { state.backups = JSON.parse(savedBackups); } catch (e) { }
     }
+    // 로드 후 즉시 전체 히스토리 정화(청소) 실시
+    syncQuestsToHistoryFromDate();
 }
 
 function saveLocal() { 
@@ -247,12 +249,14 @@ function updateHistoryToday() {
  * 특정 날짜부터의 모든 히스토리에 현재 활성화된 숙제들을 동기화합니다.
  * (과거 날짜로 숙제를 추가했을 때 기존 히스토리 스냅샷에 반영하기 위함)
  */
-function syncQuestsToHistoryFromDate(startDateStr) {
+function syncQuestsToHistoryFromDate(startDateStr = null) {
     Object.keys(state.history).forEach(dateStr => {
-        if (dateStr >= startDateStr) {
+        // startDateStr이 없으면 전체 청소, 있으면 해당 날짜 이후만 청소
+        if (!startDateStr || dateStr >= startDateStr) {
             const h = state.history[dateStr];
             const applicable = state.quests.filter(q => isQuestActiveOnDate(q, dateStr));
             
+            // 신규/수정 반영
             applicable.forEach(q => {
                 const exists = h.quests.find(hq => hq.id === q.id);
                 if (!exists) {
@@ -262,17 +266,23 @@ function syncQuestsToHistoryFromDate(startDateStr) {
                     });
                 } else {
                     exists.completed = isCompletedInCycle(q, dateStr);
-                    exists.title = q.title; // 이름 변경 등 반영
+                    exists.title = q.title;
                     exists.game = q.game;
                 }
             });
             
-            // 삭제되었거나, 해당 날짜에 더 이상 활성화되지 않는 숙제 정리 (날짜 안 맞는 일회성 등)
+            // 삭제되었거나, 해당 날짜에 활성화되지 않는 숙제 청소
             h.quests = h.quests.filter(hq => {
                 const mq = state.quests.find(x => x.id === hq.id);
                 return mq && isQuestActiveOnDate(mq, dateStr);
             });
-            h.percent = calculatePercent(h.quests);
+
+            // 숙제가 하나도 없는 히스토리 날짜는 아예 삭제하여 달력을 깨끗하게 함
+            if (h.quests.length === 0) {
+                delete state.history[dateStr];
+            } else {
+                h.percent = calculatePercent(h.quests);
+            }
         }
     });
 }
