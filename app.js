@@ -49,8 +49,8 @@ let isInitialized = false;
 
 // --- 3. Initialization ---
 window.onload = async () => {
+    render(); 
     initFirebase();
-    // 로그인 대기 후 데이터 로드 (onAuthStateChanged에서 처리)
     setupEventListeners();
 };
 
