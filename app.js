@@ -149,10 +149,15 @@ function setupRealtimeSync() {
                 state = { 
                     ...state, 
                     ...toSync,
-                    backups: cloud.backups || state.backups // 백업도 포함
+                    backups: cloud.backups || state.backups 
                 };
+                // 로컬 스토리지 양쪽(데이터 및 백업) 모두 저장
                 localStorage.setItem(getStorageKey(), JSON.stringify(toSync));
+                localStorage.setItem(getBackupKey(), JSON.stringify(state.backups));
                 render();
+                
+                const syncTime = new Date(cloud.updatedAt).toLocaleTimeString('ko-KR');
+                showToast(`클라우드 동기화 완료 (${syncTime})`, "info");
             }
         }
     }, err => {
@@ -181,6 +186,8 @@ function save(isSyncAction = false) {
     // 사용자가 직접 수정하거나 리셋이 발생한 경우에만 시간을 새로 찍습니다.
     if (!isSyncAction) {
         state.updatedAt = Date.now();
+        const saveTime = new Date(state.updatedAt).toLocaleTimeString('ko-KR');
+        showToast(`저장 완료 (${saveTime})`, "info");
     }
 
     const { calendarDate, backups, ...toSave } = state;
