@@ -721,11 +721,7 @@ function renderStats() {
     }).join('');
 }
 
-function showHistoryDetail(dateStr) {
-    const detail = document.getElementById('history-detail');
-    const dateTitle = document.getElementById('history-date');
-    const percentBadge = document.getElementById('history-percent');
-    const list = document.getElementById('history-list');
+function renderNotes() {
     const textarea = document.getElementById('notes-textarea');
     if (textarea) {
         textarea.value = state.notes || '';
