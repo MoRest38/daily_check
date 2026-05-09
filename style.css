@@ -2267,7 +2267,10 @@ textarea {
     color: var(--text-bright);
     cursor: pointer;
     letter-spacing: -0.02em;
-    white-space: nowrap; /* 줄바꿈 방지 */
+}
+
+.date-main-info span {
+    white-space: nowrap !important;
 }
 
 .date-main-info i {
