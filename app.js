@@ -181,11 +181,9 @@ function setupRealtimeSync() {
     unsubscribeSync = db.collection('users').doc(state.user.uid).onSnapshot(doc => {
         if (doc.exists) {
             const cloud = doc.data();
-            // 클라우드 데이터가 내 로컬보다 최신인 경우에만 자동 업데이트
             if ((cloud.updatedAt || 0) > (state.updatedAt || 0)) {
                 console.log("Cloud update detected. Syncing...");
-                // 로컬 전용 데이터(스크린샷, 백업, 로그 등)는 유지하고 나머지만 업데이트
-                const { user, calendarDate, backups, screenshots, logs, gameIcons, appIcon, ...toSync } = cloud;
+                const { user, calendarDate, backups, logs, ...toSync } = cloud;
                 state = { 
                     ...state, 
                     ...toSync
@@ -212,43 +210,6 @@ function setupRealtimeSync() {
     }, err => {
         console.warn("Real-time sync restricted.");
     });
-
-    // 갤러리(스크린샷) 실시간 동기화 및 마이그레이션
-    if (!window.screenshotsListener) {
-        window.screenshotsListener = db.collection('users').doc(state.user.uid).collection('screenshots').onSnapshot(snapshot => {
-            if (!state.screenshots) state.screenshots = [];
-            let changed = false;
-            
-            // 클라우드 데이터를 로컬에 반영
-            const cloudIds = [];
-            snapshot.forEach(doc => {
-                const data = doc.data();
-                cloudIds.push(data.id);
-                const exists = state.screenshots.find(s => s.id === data.id);
-                if (!exists) {
-                    state.screenshots.push(data);
-                    changed = true;
-                } else if (exists.data !== data.data) {
-                    exists.data = data.data;
-                    changed = true;
-                }
-            });
-
-            // 마이그레이션: 로컬에만 있는 데이터를 클라우드로 업로드
-            // (snapshot이 로드된 후 cloudIds에 없는 것들은 기존 로컬 데이터이거나 방금 추가된 것)
-            const localOnly = state.screenshots.filter(s => !cloudIds.includes(s.id));
-            if (localOnly.length > 0) {
-                console.log("Migrating local screenshots:", localOnly.length);
-                localOnly.forEach(s => uploadScreenshotCloud(s));
-            }
-            
-            if (changed) {
-                console.log("Gallery synced and updated.");
-                save(true);
-                if (state.currentView === 'gallery') renderGallery();
-            }
-        });
-    }
 }
 
 async function syncCloud() {
@@ -259,40 +220,22 @@ async function syncCloud() {
 async function saveCloud() {
     if (!state.user || !db) return;
     try {
-        const { user, calendarDate, backups, screenshots, logs, gameIcons, appIcon, ...toSave } = state;
+        // 백업과 로그를 제외한 모든 데이터(압축된 스크린샷 포함)를 메인 문서에 저장
+        const { user, calendarDate, backups, logs, ...toSave } = state;
         await db.collection('users').doc(state.user.uid).set(toSave, { merge: true });
     } catch (e) { 
         console.warn("Cloud save failed:", e);
         if (e.code === 'permission-denied') {
-            showToast("클라우드 저장 권한이 없습니다. Firestore 보안 규칙을 확인하세요.", "error");
+            showToast("클라우드 저장 권한이 없습니다.", "error");
+        } else if (e.message.includes("limit")) {
+            showToast("데이터 용량이 너무 큽니다. 스크린샷을 줄여주세요.", "warning");
         }
     }
 }
 
-async function uploadScreenshotCloud(s) {
-    if (!state.user || !db) return;
-    try {
-        await db.collection('users').doc(state.user.uid).collection('screenshots').doc(String(s.id)).set(s);
-    } catch (e) { 
-        console.error("Cloud upload error:", e);
-        if (e.code === 'permission-denied') {
-            showToast("이미지 업로드 권한이 없습니다. (Firestore 보안 규칙 확인)", "error");
-        } else {
-            showToast("이미지 클라우드 연동 실패: " + e.message, "error");
-        }
-    }
-}
-
-async function deleteScreenshotCloud(id) {
-    if (!state.user || !db) return;
-    try {
-        await db.collection('users').doc(state.user.uid).collection('screenshots').doc(String(id)).delete();
-    } catch (e) { 
-        if (e.code === 'permission-denied') {
-            showToast("삭제 권한이 없습니다.", "error");
-        }
-    }
-}
+// 개별 업로드 함수는 이제 사용하지 않음 (메인 문서에 통합)
+async function uploadScreenshotCloud(s) { }
+async function deleteScreenshotCloud(id) { }
 
 // --- 5. Core Logic ---
 function save(isSyncAction = false) {
