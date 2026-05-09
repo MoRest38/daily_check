@@ -144,11 +144,11 @@
                         <div class="widget-card timeline-card glass">
                             <div id="mini-calendar-strip" class="timeline-strip"></div>
                         </div>
-                        <div class="widget-card status-card glass">
+                        <div class="widget-card status-card glass" onclick="showRemainingList()" style="cursor: pointer;">
                             <div class="status-content">
                                 <div class="status-left">
                                     <div class="status-label">오늘의 숙제 현황</div>
-                                    <div id="stat-remains-badge" class="remains-counter">남은 숙제 0</div>
+                                    <div id="stat-remains-badge" class="remains-counter" onclick="showRemainingList()" style="cursor: pointer;">남은 숙제 0</div>
                                 </div>
                                 <div id="stat-percent" class="status-percent">0%</div>
                             </div>

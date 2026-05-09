@@ -15,7 +15,7 @@ let state = {
     quests: [],
     history: {},
     games: [],
-    activeGame: '',
+    activeGame: '_all',
     lastResetDate: null,
     currentView: 'dashboard',
     calendarDate: new Date(),
@@ -26,7 +26,11 @@ let state = {
     screenshots: [],
     viewDate: getTodayStr(),
     gameIcons: {},
-    todos: []
+    todos: [],
+    settings: {
+        resetHour: 0, // 기본값 자정
+        defaultView: 'dashboard'
+    }
 };
 
 const DEFAULT_CONFIG = {
@@ -345,9 +349,8 @@ function loadLocal() {
 
     // '전체' 탭 제거 및 활성 탭 정리
     state.games = (state.games || []).filter(g => g !== '전체');
-    if (!state.activeGame || state.activeGame === '전체') {
-        state.activeGame = state.games.length > 0 ? state.games[0] : '';
-    }
+    // 앱 실행 시 기본적으로 '전체보기' 활성화
+    state.activeGame = '_all';
 
     // 자동 백업 체크
     setTimeout(checkAutoBackup, 2000); // 실행 2초 후 체크
@@ -1237,6 +1240,30 @@ function renderSettings() {
                 </div>
             </div>
 
+            <!-- 일반 설정 -->
+            <div class="settings-card glass">
+                <h3><i data-lucide="settings-2"></i> 일반 설정</h3>
+                <div class="form-group" style="margin-bottom: 20px;">
+                    <label style="display: block; margin-bottom: 8px; font-weight: 600;">어플리케이션 이름</label>
+                    <div class="flex-row" style="gap: 10px;">
+                        <input type="text" id="input-app-title" class="quest-input" value="${state.appTitle}" placeholder="Quest Master" style="flex: 1;">
+                        <button class="btn btn-primary btn-sm" id="btn-save-title" style="padding: 10px 20px;">저장</button>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label style="display: block; margin-bottom: 8px; font-weight: 600;">일일 리셋 시각 (하루의 시작)</label>
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                        <select id="select-reset-hour" class="quest-input" style="flex: 1; padding: 10px;">
+                            ${Array.from({length: 24}, (_, i) => `<option value="${i}" ${state.settings.resetHour == i ? 'selected' : ''}>오전 ${i}시 (새벽)</option>`).join('')}
+                        </select>
+                        <button class="btn btn-primary btn-sm" id="btn-save-reset-hour" style="padding: 10px 20px;">변경</button>
+                    </div>
+                    <p style="font-size: 0.8rem; color: var(--text-dim); margin-top: 8px;">
+                        * 설정한 시간이 되면 숙제들이 자동으로 미완료 상태로 초기화됩니다.
+                    </p>
+                </div>
+            </div>
+
             <!-- 서버 및 아이콘 설정 -->
             <div class="settings-card">
                 <div class="stat-header">
@@ -1341,7 +1368,8 @@ function renderDashboard() {
         if (state.games.length === 0) {
             filter.innerHTML = '<option value="">등록된 탭 없음</option>';
         } else {
-            filter.innerHTML = state.games.map(g => `<option value="${g}" ${g === state.activeGame ? 'selected' : ''}>${g}</option>`).join('');
+            filter.innerHTML = `<option value="_all" ${state.activeGame === '_all' ? 'selected' : ''}>전체보기</option>` + 
+                               state.games.map(g => `<option value="${g}" ${g === state.activeGame ? 'selected' : ''}>${g}</option>`).join('');
         }
     }
 
@@ -1350,7 +1378,7 @@ function renderDashboard() {
 
     // 해당 날짜에 활성화된 숙제 필터링
     const filteredQuests = state.quests.filter(q => {
-        if (q.game !== state.activeGame) return false;
+        if (state.activeGame !== '_all' && q.game !== state.activeGame) return false;
         return isQuestActiveOnDate(q, targetDate);
     });
     
@@ -1370,6 +1398,7 @@ function renderDashboard() {
             if (diff <= 3 && diff >= 0) endInfo = `<span class="urgent-tag">종료 ${Math.ceil(diff)}일 전</span>`;
         }
 
+        const gameIcon = state.gameIcons && state.gameIcons[q.game];
         card.innerHTML = `
             <div class="drag-handle" draggable="true">
                 <i data-lucide="grip-vertical"></i>
@@ -1379,7 +1408,14 @@ function renderDashboard() {
             </div>
             <div class="quest-content" data-action="edit-quest" data-id="${q.id}">
                 <div class="quest-title">${q.title}</div>
-                <div class="quest-meta">${q.game} | ${getRepeatText(q)} ${q.type === 'once' ? `(${formatDate(q.createdAt)} 등록)` : `<span class="reset-dday">[D-${dday}]</span>`} ${endInfo}</div>
+                <div class="quest-meta">
+                    <div class="quest-tab-info">
+                        ${gameIcon ? `<img src="${gameIcon}" class="quest-tab-icon">` : ''}
+                        <span>${q.game}</span>
+                    </div>
+                    <span class="meta-separator">|</span>
+                    ${getRepeatText(q)} ${q.type === 'once' ? `(${formatDate(q.createdAt)} 등록)` : (q.type === 'daily' ? '' : `<span class="reset-dday">[D-${dday}]</span>`)} ${endInfo}
+                </div>
             </div>
             <div class="quest-actions">
                 <button class="edit-quest-btn" data-action="edit-quest" data-id="${q.id}"><i data-lucide="edit-3"></i></button>
@@ -1473,37 +1509,48 @@ function formatDate(dateStr) {
 
 function getDaysUntilReset(q) {
     if (q.type === 'once') return -1;
-    const now = new Date();
-    const today6am = new Date(now);
-    today6am.setHours(6, 0, 0, 0);
-    if (now < today6am) today6am.setDate(today6am.getDate() - 1);
+    
+    // 현재 보고 있는 날짜(대시보드 날짜) 기준
+    const viewDateStr = state.viewDate || getTodayStr();
+    const viewDate = new Date(viewDateStr + 'T00:00:00');
+    
     if (q.type === 'daily') return 0;
-    if (q.type === 'weekly') {
-        let next = new Date(today6am);
-        next.setDate(next.getDate() + (8 - next.getDay()) % 7 || 7);
-        return Math.ceil((next - now) / (1000 * 60 * 60 * 24)) - 1;
-    }
-    if (q.type === 'biweekly') {
-        const start = q.createdAt ? new Date(q.createdAt) : new Date();
-        if (isNaN(start.getTime())) return -1;
+
+    if (q.type === 'weekly' || q.type === 'biweekly') {
+        // 리셋 기준일: 월요일 (1)
+        let daysUntilNextMonday = (1 - viewDate.getDay() + 7) % 7;
+        if (daysUntilNextMonday === 0) daysUntilNextMonday = 7; 
         
-        let next = new Date(today6am);
-        let safetyCounter = 0;
-        while (safetyCounter < 100) {
-            next.setDate(next.getDate() + (8 - next.getDay()) % 7 || 7);
-            const diffWeeks = Math.floor((next - start) / (7 * 24 * 60 * 60 * 1000));
-            if (diffWeeks % 2 === 0) break;
-            safetyCounter++;
+        if (q.type === 'weekly') return daysUntilNextMonday - 1;
+        
+        // 격주 숙제 처리 (14일 주기)
+        const start = q.createdAt ? new Date(q.createdAt + 'T00:00:00') : new Date(0);
+        const msPerDay = 24 * 60 * 60 * 1000;
+        
+        // '다음 월요일' 시점의 주차를 계산
+        const nextMonday = new Date(viewDate.getTime() + daysUntilNextMonday * msPerDay);
+        const diffWeeks = Math.floor((nextMonday - start) / (7 * msPerDay));
+        
+        // shouldReset 로직에 따르면 diffWeeks가 짝수(0, 2, 4...)인 월요일에 리셋됨
+        if (diffWeeks % 2 === 0) {
+            // 다음 월요일이 리셋일임
+            return daysUntilNextMonday - 1;
+        } else {
+            // 다음 월요일은 리셋일이 아님 -> 그 다음 주 월요일이 리셋일
+            return daysUntilNextMonday + 6;
         }
-        return Math.ceil((next - now) / (1000 * 60 * 60 * 24)) - 1;
     }
+
     if (q.type === 'interval') {
-        const start = q.createdAt ? new Date(q.createdAt) : new Date(0);
+        const start = q.createdAt ? new Date(q.createdAt + 'T00:00:00') : new Date(0);
         const interval = parseInt(q.interval) || 1;
-        const diffDays = Math.floor((today6am - start) / (24 * 60 * 60 * 1000));
-        const remaining = interval - (diffDays % interval);
+        const diffDays = Math.round((viewDate - start) / (24 * 60 * 60 * 1000));
+        
+        const elapsedInCycle = diffDays % interval;
+        const remaining = interval - elapsedInCycle;
         return remaining - 1;
     }
+    
     return -1;
 }
 
@@ -1589,7 +1636,7 @@ function updateStats() {
     
     // 현재 필터와 날짜에 맞는 숙제들 추출
     let visible = state.quests.filter(q => {
-        if (q.game !== state.activeGame) return false;
+        if (state.activeGame !== '_all' && q.game !== state.activeGame) return false;
         return isQuestActiveOnDate(q, targetDate);
     });
 
@@ -1603,6 +1650,66 @@ function updateStats() {
 
     if (fill) fill.style.width = perc + '%';
     if (percText) percText.textContent = perc + '%';
+
+    const remainsBadge = document.getElementById('stat-remains-badge');
+    if (remainsBadge) {
+        remainsBadge.textContent = `남은 숙제 ${total - done}`;
+    }
+}
+
+window.showRemainingList = function() {
+    const todayStr = getTodayStr();
+    const targetDate = state.viewDate || todayStr;
+    
+    const visible = state.quests.filter(q => {
+        if (state.activeGame !== '_all' && q.game !== state.activeGame) return false;
+        return isQuestActiveOnDate(q, targetDate);
+    });
+    
+    const incomplete = visible.filter(q => !isCompletedInCycle(q, targetDate));
+    
+    const modal = document.getElementById('modal-container');
+    const titleEl = document.getElementById('modal-title');
+    const body = document.querySelector('.modal-body');
+    if (!modal || !body) return;
+
+    modal.classList.remove('hidden');
+    titleEl.textContent = `미완료 숙제 (${incomplete.length})`;
+    
+    if (incomplete.length === 0) {
+        body.innerHTML = `
+            <div style="text-align: center; padding: 40px 20px;">
+                <div style="font-size: 3rem; margin-bottom: 15px;">🏆</div>
+                <h3 style="color: var(--primary-light); margin-bottom: 10px;">모든 숙제 완료!</h3>
+                <p style="color: var(--text-dim); font-size: 0.9rem;">오늘 계획한 모든 숙제를 끝냈습니다. 고생하셨어요!</p>
+            </div>
+        `;
+        return;
+    }
+
+    body.innerHTML = `
+        <div class="remains-list-container">
+            ${incomplete.map(q => {
+                const gameIcon = state.gameIcons && state.gameIcons[q.game];
+                return `
+                    <div class="remains-item glass">
+                        <div class="remains-item-left">
+                            ${gameIcon ? `<img src="${gameIcon}" class="remains-item-icon">` : '<div class="remains-item-icon-placeholder"></div>'}
+                            <div class="remains-item-info">
+                                <div class="remains-item-title">${q.title}</div>
+                                <div class="remains-item-game">${q.game}</div>
+                            </div>
+                        </div>
+                        <i data-lucide="circle" style="color: var(--text-muted); width: 18px;"></i>
+                    </div>
+                `;
+            }).join('')}
+        </div>
+        <div style="margin-top: 20px; text-align: center;">
+            <button class="btn btn-primary" style="width: 100%;" onclick="document.getElementById('modal-container').classList.add('hidden')">확인</button>
+        </div>
+    `;
+    if (window.lucide) lucide.createIcons();
 }
 
 // 주간 달력 스트립 렌더링 함수 (타임라인 스타일)
@@ -1837,6 +1944,14 @@ function setupEventListeners() {
                 render(); save();
                 showToast("데이터가 복구되었습니다.", "info");
             }
+        }
+        if (target.id === 'btn-save-reset-hour') {
+            const val = parseInt(document.getElementById('select-reset-hour').value);
+            if (!state.settings) state.settings = {};
+            state.settings.resetHour = val;
+            addLog('info', `일일 리셋 시간이 오전 ${val}시로 변경되었습니다.`);
+            save(); 
+            showToast("리셋 시간이 변경되었습니다.", "info");
         }
         if (target.id === 'btn-save-title') {
             const input = document.getElementById('input-app-title');
