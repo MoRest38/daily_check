@@ -2267,11 +2267,13 @@ textarea {
     color: var(--text-bright);
     cursor: pointer;
     letter-spacing: -0.02em;
+    white-space: nowrap; /* 줄바꿈 방지 */
 }
 
 .date-main-info i {
     color: var(--primary);
     width: 20px;
+    flex-shrink: 0;
 }
 
 .nav-btn-circle {
@@ -2336,6 +2338,7 @@ textarea {
     justify-content: space-between;
     gap: 12px;
     width: 100%;
+    overflow: hidden; /* 영역 밖으로 나가는 것 방지 */
 }
 
 .timeline-item {
@@ -2460,6 +2463,30 @@ textarea {
 @media (max-width: 1024px) {
     .dashboard-widgets-grid {
         grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 600px) {
+    .premium-date-nav {
+        gap: 8px;
+        padding: 6px 12px;
+    }
+    .date-main-info {
+        font-size: 1.1rem;
+        gap: 8px;
+    }
+    .nav-btn-circle {
+        width: 30px;
+        height: 30px;
+    }
+    .timeline-strip {
+        gap: 4px;
+    }
+    .timeline-num {
+        font-size: 1rem;
+    }
+    .timeline-day {
+        font-size: 0.55rem;
     }
 }
 
