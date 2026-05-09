@@ -447,10 +447,36 @@ body {
 
 .form-group label {
     display: block;
-    margin-bottom: 0.5rem;
+    margin-bottom: 0.6rem;
+    color: var(--text-dim);
+    font-size: 0.85rem;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.form-group label i {
+    width: 16px;
+    height: 16px;
+    color: var(--primary);
+}
+
+.form-row {
+    display: flex;
+    gap: 1.25rem;
+    margin-bottom: 1.5rem;
+}
+
+.flex-1 {
+    flex: 1;
+}
+
+.label-hint {
+    font-size: 0.7rem;
     color: var(--text-muted);
-    font-size: 0.875rem;
-    font-weight: 600;
+    font-weight: 400;
+    margin-left: 4px;
 }
 
 .form-group input, 
@@ -572,14 +598,15 @@ body {
     background: transparent;
     border: none;
     color: var(--text-dim);
-    opacity: 0;
+    opacity: 0.4; /* 평소에도 약간 보이게 수정 */
     cursor: pointer;
     transition: var(--transition);
     padding: 0.5rem;
 }
 
 .quest-card:hover .delete-quest-btn,
-.quest-card:hover .edit-quest-btn {
+.quest-card:hover .edit-quest-btn,
+.todo-item:hover .delete-quest-btn {
     opacity: 1;
 }
 
@@ -1013,29 +1040,34 @@ body {
 .settings-container {
     display: flex;
     flex-direction: column;
-    gap: 2rem;
-    margin-top: 1rem;
+    gap: 2.5rem;
+    margin-top: 1.5rem;
+    padding-bottom: 5rem;
+    max-width: 900px;
+    margin-left: auto;
+    margin-right: auto;
 }
 
 .settings-card {
     background: rgba(255, 255, 255, 0.03);
     border: 1px solid rgba(255, 255, 255, 0.05);
-    border-radius: 18px;
-    padding: 1.5rem; /* 2rem에서 적절히 축소 */
+    border-radius: 20px;
+    padding: 1.8rem;
     box-shadow: var(--shadow-lg);
     display: flex;
     flex-direction: column;
-    gap: 1.25rem;
+    gap: 1.5rem;
 }
 
 .settings-card h3 {
-    font-size: 1.1rem;
-    font-weight: 700;
-    margin-bottom: 1.2rem;
+    font-size: 1.2rem;
+    font-weight: 800;
+    margin-bottom: 1.5rem;
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 12px;
     color: var(--text-bright);
+    letter-spacing: -0.02em;
 }
 
 .backup-grid {
@@ -1303,6 +1335,11 @@ body {
     .content { padding: 1rem !important; padding-top: 0 !important; padding-bottom: 5rem !important; }
     .stats-grid { grid-template-columns: 1fr; }
     .modal { width: 95%; }
+
+    /* 모바일에서는 삭제/수정 버튼 항상 노출 */
+    .delete-quest-btn, .edit-quest-btn {
+        opacity: 1 !important;
+    }
 }
 
 /* --- Premium Header UI --- */
@@ -2720,3 +2757,55 @@ textarea {
         height: 300px;
     }
 }
+
+/* Todo View Styles */
+.todo-list-container {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-top: 1.5rem;
+}
+
+.todo-item {
+    display: flex;
+    align-items: center;
+    gap: 1.25rem;
+    padding: 1.5rem;
+    transition: var(--transition);
+}
+
+.todo-item:hover {
+    transform: translateX(6px);
+    border-color: var(--primary);
+}
+
+.todo-item.completed {
+    opacity: 0.5;
+}
+
+.todo-item.completed .todo-title {
+    text-decoration: line-through;
+    color: var(--text-dim);
+}
+
+.todo-content {
+    flex: 1;
+}
+
+.todo-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+}
+
+.todo-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.todo-date {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    margin-top: 4px;
+    font-weight: 500;
+}
+

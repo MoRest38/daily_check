@@ -78,18 +78,22 @@
                     <i data-lucide="sticky-note"></i>
                     <span>노트</span>
                 </a>
-                <button class="nav-item" id="nav-gallery">
+                <a href="#" class="nav-item" id="nav-todo" data-action="nav-todo">
+                    <i data-lucide="check-square"></i>
+                    <span>일회용 숙제</span>
+                </a>
+                <a href="#" class="nav-item" id="nav-gallery" data-action="nav-gallery">
                     <i data-lucide="camera"></i>
                     <span>갤러리</span>
-                </button>
-                <button class="nav-item" id="nav-log">
+                </a>
+                <a href="#" class="nav-item" id="nav-log" data-action="nav-log">
                     <i data-lucide="scroll-text"></i>
                     <span>히스토리 로그</span>
-                </button>
-                <button class="nav-item" id="nav-settings">
+                </a>
+                <a href="#" class="nav-item" id="nav-settings" data-action="nav-settings">
                     <i data-lucide="settings"></i>
-                    <span>데이터 관리</span>
-                </button>
+                    <span>데이터 & 로컬 저장</span>
+                </a>
             </div>
             <div class="user-profile" id="user-section">
                 <!-- Login UI here -->
@@ -102,9 +106,7 @@
                 <div class="header-info"></div>
                 <div class="header-actions pc-only-actions">
                     <div class="filter-group">
-                        <select id="game-filter" class="glass-select">
-                            <option value="전체">모든 게임</option>
-                        </select>
+                        <select id="game-filter" class="glass-select"></select>
                     </div>
                     <button class="btn btn-primary" id="add-quest-btn">
                         <i data-lucide="plus"></i>
@@ -277,6 +279,19 @@
                 </div>
             </section>
 
+            <!-- Todo View (Disposable Quests) -->
+            <section id="todo-view" class="view hidden">
+                <div class="section-header">
+                    <h2>일회용 숙제</h2>
+                    <button class="btn btn-primary btn-sm" id="btn-add-todo">
+                        <i data-lucide="plus"></i> 항목 추가
+                    </button>
+                </div>
+                <div class="todo-list-container" id="todo-list">
+                    <!-- Todos injected here -->
+                </div>
+            </section>
+
             <!-- Gallery View -->
             <section id="gallery-view" class="view hidden">
                 <div class="section-header">
@@ -291,45 +306,11 @@
                 </div>
             </section>
 
-            <section id="settings-view" class="hidden">
-                <div class="section-header"><h2>데이터 관리</h2></div>
-                <div class="stats-grid">
-                    <div class="stat-card glass warning-card" style="border-color: rgba(239, 68, 68, 0.3); grid-column: span 2;">
-                        <div class="stat-header" style="color: #ef4444"><span>전체 초기화</span><i data-lucide="alert-triangle"></i></div>
-                        <p style="font-size: 0.85rem; color: var(--text-dim); margin-bottom: 1rem;">모든 숙제 정보와 히스토리를 영구 삭제합니다.</p>
-                        <button class="btn btn-danger" id="btn-clear-all" style="width: 100%">전체 데이터 삭제</button>
-                    </div>
-                </div>
-
-                <div class="quest-section" style="margin-top: 2rem;">
-                    <div class="section-header">
-                        <h2>데이터 파일 관리</h2>
-                    </div>
-                    <div class="stats-grid">
-                        <div class="stat-card glass">
-                            <div class="stat-header"><span>파일로 내보내기</span><i data-lucide="upload"></i></div>
-                            <p style="font-size: 0.8rem; color: var(--text-dim); margin-bottom: 1rem;">현재 데이터를 .json 파일로 저장합니다.</p>
-                            <button class="btn btn-primary" id="btn-export-json" style="width: 100%">파일 저장 (.json)</button>
-                        </div>
-                        <div class="stat-card glass">
-                            <div class="stat-header"><span>파일에서 가져오기</span><i data-lucide="download"></i></div>
-                            <p style="font-size: 0.8rem; color: var(--text-dim); margin-bottom: 1rem;">저장된 .json 파일을 불러옵니다.</p>
-                            <input type="file" id="input-import-json" style="display: none;" accept=".json">
-                            <button class="btn btn-primary" id="btn-import-trigger" style="width: 100%">파일 선택</button>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="quest-section" style="margin-top: 2rem;">
-                    <div class="section-header">
-                        <h2>데이터 백업 (최대 10개)</h2>
-                        <button class="btn btn-primary" id="btn-backup-now">
-                            <i data-lucide="download"></i><span>현재 상태 백업</span>
-                        </button>
-                    </div>
-                    <div class="quest-grid" id="backup-list">
-                        <!-- 백업 목록 주입 -->
-                    </div>
+            <section id="settings-view" class="view hidden">
+                <!-- app.js의 renderSettings()에 의해 내용이 동적으로 생성됩니다. -->
+                <div class="loading-state" style="text-align: center; padding: 50px; color: var(--text-dim);">
+                    <i data-lucide="loader" class="spin"></i>
+                    <p>설정 로딩 중...</p>
                 </div>
             </section>
             <!-- Log View -->
@@ -384,6 +365,10 @@
             <i data-lucide="sticky-note"></i>
             <span>노트</span>
         </button>
+        <button class="nav-item" data-action="nav-todo">
+            <i data-lucide="check-square"></i>
+            <span>일회용</span>
+        </button>
         <button class="nav-item" data-action="nav-gallery">
             <i data-lucide="camera"></i>
             <span>갤러리</span>
@@ -394,7 +379,7 @@
         </button>
         <button class="nav-item" data-action="nav-settings">
             <i data-lucide="settings"></i>
-            <span>관리</span>
+            <span>저장/관리</span>
         </button>
     </nav>
 

@@ -15,8 +15,8 @@ let state = {
     quests: [],
     history: {},
     games: [],
+    activeGame: '',
     lastResetDate: null,
-    activeGame: '전체',
     currentView: 'dashboard',
     calendarDate: new Date(),
     backups: [],
@@ -25,7 +25,8 @@ let state = {
     logs: [],
     screenshots: [],
     viewDate: getTodayStr(),
-    gameIcons: {}
+    gameIcons: {},
+    todos: []
 };
 
 const DEFAULT_CONFIG = {
@@ -42,6 +43,9 @@ function getStorageKey() {
 }
 function getBackupKey() {
     return state.user ? `QM_BACKUP_${state.user.uid}` : 'QM_BACKUP_GUEST';
+}
+function getAutoBackupKey() {
+    return state.user ? `QM_AUTO_BACKUP_${state.user.uid}` : 'QM_AUTO_BACKUP_GUEST';
 }
 
 let db = null;
@@ -179,12 +183,12 @@ function setupRealtimeSync() {
             const cloud = doc.data();
             // 클라우드 데이터가 내 로컬보다 최신인 경우에만 자동 업데이트
             if ((cloud.updatedAt || 0) > (state.updatedAt || 0)) {
-                console.log("Cloud update detected. Syncing silently...");
-                const { user, calendarDate, backups, ...toSync } = cloud;
+                console.log("Cloud update detected. Syncing...");
+                // 로컬 전용 데이터(스크린샷, 백업, 로그 등)는 유지하고 나머지만 업데이트
+                const { user, calendarDate, backups, screenshots, logs, gameIcons, appIcon, ...toSync } = cloud;
                 state = { 
                     ...state, 
-                    ...toSync,
-                    backups: cloud.backups || state.backups 
+                    ...toSync
                 };
                 
                 // 클라우드 데이터를 받자마자 즉시 전수 조사(청소) 실시
@@ -208,6 +212,43 @@ function setupRealtimeSync() {
     }, err => {
         console.warn("Real-time sync restricted.");
     });
+
+    // 갤러리(스크린샷) 실시간 동기화 및 마이그레이션
+    if (!window.screenshotsListener) {
+        window.screenshotsListener = db.collection('users').doc(state.user.uid).collection('screenshots').onSnapshot(snapshot => {
+            if (!state.screenshots) state.screenshots = [];
+            let changed = false;
+            
+            // 클라우드 데이터를 로컬에 반영
+            const cloudIds = [];
+            snapshot.forEach(doc => {
+                const data = doc.data();
+                cloudIds.push(data.id);
+                const exists = state.screenshots.find(s => s.id === data.id);
+                if (!exists) {
+                    state.screenshots.push(data);
+                    changed = true;
+                } else if (exists.data !== data.data) {
+                    exists.data = data.data;
+                    changed = true;
+                }
+            });
+
+            // 마이그레이션: 로컬에만 있는 데이터를 클라우드로 업로드
+            // (snapshot이 로드된 후 cloudIds에 없는 것들은 기존 로컬 데이터이거나 방금 추가된 것)
+            const localOnly = state.screenshots.filter(s => !cloudIds.includes(s.id));
+            if (localOnly.length > 0) {
+                console.log("Migrating local screenshots:", localOnly.length);
+                localOnly.forEach(s => uploadScreenshotCloud(s));
+            }
+            
+            if (changed) {
+                console.log("Gallery synced and updated.");
+                save(true);
+                if (state.currentView === 'gallery') renderGallery();
+            }
+        });
+    }
 }
 
 async function syncCloud() {
@@ -218,16 +259,43 @@ async function syncCloud() {
 async function saveCloud() {
     if (!state.user || !db) return;
     try {
-        const { user, calendarDate, ...toSave } = state;
-        // saveCloud는 현재 state에 기록된 updatedAt을 그대로 서버에 보냅니다. (Date.now() 사용 금지)
+        const { user, calendarDate, backups, screenshots, logs, gameIcons, appIcon, ...toSave } = state;
         await db.collection('users').doc(state.user.uid).set(toSave, { merge: true });
-    } catch (e) { }
+    } catch (e) { 
+        console.warn("Cloud save failed:", e);
+        if (e.code === 'permission-denied') {
+            showToast("클라우드 저장 권한이 없습니다. Firestore 보안 규칙을 확인하세요.", "error");
+        }
+    }
+}
+
+async function uploadScreenshotCloud(s) {
+    if (!state.user || !db) return;
+    try {
+        await db.collection('users').doc(state.user.uid).collection('screenshots').doc(String(s.id)).set(s);
+    } catch (e) { 
+        console.error("Cloud upload error:", e);
+        if (e.code === 'permission-denied') {
+            showToast("이미지 업로드 권한이 없습니다. (Firestore 보안 규칙 확인)", "error");
+        } else {
+            showToast("이미지 클라우드 연동 실패: " + e.message, "error");
+        }
+    }
+}
+
+async function deleteScreenshotCloud(id) {
+    if (!state.user || !db) return;
+    try {
+        await db.collection('users').doc(state.user.uid).collection('screenshots').doc(String(id)).delete();
+    } catch (e) { 
+        if (e.code === 'permission-denied') {
+            showToast("삭제 권한이 없습니다.", "error");
+        }
+    }
 }
 
 // --- 5. Core Logic ---
 function save(isSyncAction = false) {
-    // 로그인 여부와 관계없이 로컬 저장은 수행하여 알림창이 뜨게 합니다.
-    
     // 사용자가 직접 수정하거나 리셋이 발생한 경우에만 시간을 새로 찍습니다.
     if (!isSyncAction) {
         state.updatedAt = Date.now();
@@ -235,7 +303,8 @@ function save(isSyncAction = false) {
         showToast(`저장 완료 (${saveTime})`, "info");
     }
 
-    const { calendarDate, backups, ...toSave } = state;
+    // 모든 중요 데이터를 포함하여 저장
+    const { calendarDate, backups, user, ...toSave } = state;
     localStorage.setItem(getStorageKey(), JSON.stringify(toSave));
     localStorage.setItem(getBackupKey(), JSON.stringify(state.backups));
     saveCloud();
@@ -259,6 +328,15 @@ function loadLocal() {
     }
     // 로드 후 즉시 전체 히스토리 정화(청소) 실시
     syncQuestsToHistoryFromDate();
+
+    // '전체' 탭 제거 및 활성 탭 정리
+    state.games = (state.games || []).filter(g => g !== '전체');
+    if (!state.activeGame || state.activeGame === '전체') {
+        state.activeGame = state.games.length > 0 ? state.games[0] : '';
+    }
+
+    // 자동 백업 체크
+    setTimeout(checkAutoBackup, 2000); // 실행 2초 후 체크
 }
 
 function saveLocal() { 
@@ -584,15 +662,16 @@ function render() {
         });
         document.title = state.appTitle || 'Quest Master';
 
-        const views = ['dashboard', 'calendar', 'games', 'notes', 'gallery', 'log', 'settings'];
+        const views = ['dashboard', 'calendar', 'games', 'notes', 'todo', 'gallery', 'log', 'settings'];
         const viewNames = {
             'dashboard': '숙제',
             'calendar': '캘린더',
             'games': '탭 관리',
             'notes': '노트',
+            'todo': '일회용 숙제',
             'gallery': '갤러리',
             'log': '히스토리 로그',
-            'settings': '데이터 관리'
+            'settings': '데이터 및 로컬 저장'
         };
 
         views.forEach(v => {
@@ -613,6 +692,7 @@ function render() {
         else if (state.currentView === 'calendar') renderCalendar();
         else if (state.currentView === 'games') renderGames();
         else if (state.currentView === 'notes') renderNotes();
+        else if (state.currentView === 'todo') renderTodo();
         else if (state.currentView === 'gallery') renderGallery();
         else if (state.currentView === 'log') renderLog();
         else if (state.currentView === 'settings') renderSettings();
@@ -826,6 +906,57 @@ function renderLog() {
     }).join('');
 }
 
+function renderTodo() {
+    const list = document.getElementById('todo-list');
+    if (!list) return;
+    
+    if (!state.todos || state.todos.length === 0) {
+        list.innerHTML = '<p class="empty-msg" style="padding: 2rem;">등록된 일회용 숙제가 없습니다.</p>';
+        return;
+    }
+
+    list.innerHTML = state.todos.map(t => {
+        const dateObj = t.createdAt ? new Date(t.createdAt) : null;
+        const dateStr = dateObj ? `${dateObj.getFullYear()}.${String(dateObj.getMonth() + 1).padStart(2, '0')}.${String(dateObj.getDate()).padStart(2, '0')} ${String(dateObj.getHours()).padStart(2, '0')}:${String(dateObj.getMinutes()).padStart(2, '0')}` : '';
+        
+        return `
+            <div class="todo-item glass ${t.completed ? 'completed' : ''}">
+                <div class="checkbox-wrapper" onclick="toggleTodo(${t.id})">
+                    ${t.completed ? '<i data-lucide="check"></i>' : ''}
+                </div>
+                <div class="todo-content">
+                    <div class="todo-title">${t.title}</div>
+                    ${dateStr ? `<div class="todo-date">${dateStr} 추가됨</div>` : ''}
+                </div>
+                <div class="todo-actions">
+                    <button class="delete-quest-btn" onclick="deleteTodo(${t.id})" style="display: flex; align-items: center; justify-content: center;">
+                        <i data-lucide="trash-2" style="width: 18px; height: 18px;"></i>
+                    </button>
+                </div>
+            </div>
+        `;
+    }).join('');
+    if (window.lucide) lucide.createIcons();
+}
+
+window.toggleTodo = function(id) {
+    const t = state.todos.find(x => x.id === id);
+    if (t) {
+        t.completed = !t.completed;
+        addLog('complete', `일회용 숙제 상태 변경: ${t.title} (${t.completed ? '완료' : '미완료'})`);
+        save(); renderTodo();
+    }
+}
+
+window.deleteTodo = function(id) {
+    const t = state.todos.find(x => x.id === id);
+    if (t) {
+        addLog('delete', `일회용 숙제 삭제됨: ${t.title}`);
+        state.todos = state.todos.filter(x => x.id !== id);
+        save(); renderTodo();
+    }
+}
+
 function renderGallery() {
     const list = document.getElementById('gallery-list');
     const input = document.getElementById('input-screenshot');
@@ -833,17 +964,22 @@ function renderGallery() {
 
     // 이벤트 리스너 중복 방지
     if (!input.dataset.listener) {
-        input.addEventListener('change', (e) => {
+        input.addEventListener('change', async (e) => {
             const file = e.target.files[0];
             if (file) {
-                const reader = new FileReader();
-                reader.onload = (event) => {
+                // 용량 제한을 위해 이미지 압축
+                try {
+                    const compressed = await compressImage(file);
                     if (!state.screenshots) state.screenshots = [];
-                    state.screenshots.push({ id: Date.now(), data: event.target.result });
+                    const newShot = { id: Date.now(), data: compressed };
+                    state.screenshots.push(newShot);
                     addLog('info', '갤러리에 새 스크린샷이 추가되었습니다.');
-                    save(); renderGallery();
-                };
-                reader.readAsDataURL(file);
+                    save(); 
+                    uploadScreenshotCloud(newShot); // 클라우드 개별 업로드
+                    renderGallery();
+                } catch (err) {
+                    showToast("이미지 처리 중 오류가 발생했습니다.");
+                }
             }
         });
         input.dataset.listener = "true";
@@ -869,8 +1005,45 @@ function deleteScreenshot(id) {
     if (confirm("이 스크린샷을 삭제하시겠습니까?")) {
         state.screenshots = state.screenshots.filter(s => s.id !== id);
         addLog('delete', '스크린샷이 삭제되었습니다.');
-        save(); renderGallery();
+        save();
+        deleteScreenshotCloud(id); // 클라우드에서도 삭제
+        renderGallery();
     }
+}
+
+// 이미지 압축 유틸리티
+async function compressImage(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = (event) => {
+            const img = new Image();
+            img.src = event.target.result;
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                let width = img.width;
+                let height = img.height;
+                
+                // 최대 너비 1200px로 제한
+                const MAX_WIDTH = 1200;
+                if (width > MAX_WIDTH) {
+                    height *= MAX_WIDTH / width;
+                    width = MAX_WIDTH;
+                }
+                
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, width, height);
+                
+                // JPEG 품질 0.7로 압축 (용량 최적화)
+                const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+                resolve(dataUrl);
+            };
+            img.onerror = reject;
+        };
+        reader.onerror = reject;
+    });
 }
 
 function renderNotes() {
@@ -983,8 +1156,29 @@ function renderSettings() {
     if (!view) return;
     
     view.innerHTML = `
-        <div class="section-header"><h2>데이터 관리</h2></div>
+        <div class="section-header"><h2>데이터 및 로컬 저장</h2></div>
         <div class="settings-container">
+            <!-- 로컬 저장소 관리 -->
+            <div class="settings-card" style="border-left: 4px solid var(--primary);">
+                <div class="backup-header">
+                    <h3><i data-lucide="database"></i> 로컬 저장소 관리</h3>
+                    <button class="btn btn-primary btn-sm" onclick="save()">
+                        <i data-lucide="save"></i> 즉시 저장
+                    </button>
+                </div>
+                <div id="local-storage-info" style="font-size: 0.85rem; color: var(--text-dim); margin: 1rem 0; line-height: 1.6; background: rgba(255,255,255,0.03); padding: 12px; border-radius: 8px;">
+                    로딩 중...
+                </div>
+                <div style="display: flex; gap: 8px;">
+                    <button class="btn btn-primary" id="btn-export-json" style="flex: 1">
+                        <i data-lucide="upload"></i> 파일로 내보내기
+                    </button>
+                    <button class="btn btn-primary" id="btn-import-trigger" style="flex: 1">
+                        <i data-lucide="download"></i> 파일에서 불러오기
+                    </button>
+                </div>
+            </div>
+
             <!-- 일반 설정 -->
             <div class="settings-card">
                 <h3><i data-lucide="settings-2"></i> 일반 설정</h3>
@@ -1029,10 +1223,12 @@ function renderSettings() {
                 </div>
             </div>
 
+            <!-- 서버 및 아이콘 설정 -->
+            <div class="settings-card">
                 <div class="stat-header">
                     <h3><i data-lucide="image"></i> 사이트 아이콘 설정</h3>
                 </div>
-                <div class="flex-row" style="gap: 15px; align-items: center; margin-bottom: 1rem;">
+                <div class="flex-row" style="gap: 15px; align-items: center; margin-bottom: 1.5rem;">
                     <div class="site-icon-preview glass">
                         <img src="${state.appIcon || 'icon.png'}" id="current-site-icon" style="width: 50px; height: 50px; border-radius: 10px; object-fit: cover;">
                     </div>
@@ -1041,28 +1237,29 @@ function renderSettings() {
                     </button>
                     <input type="file" id="input-site-icon" hidden accept="image/*" onchange="updateSiteIcon(this)">
                 </div>
+                
                 <div class="stat-header">
-                    <h3><i data-lucide="database"></i> 클라우드 서버 설정 (Firebase)</h3>
+                    <h3><i data-lucide="server"></i> 클라우드 서버 설정 (Firebase)</h3>
                     <span class="badge ${localStorage.getItem('QM_CUSTOM_CONFIG') ? 'badge-primary' : 'badge-dim'}" style="font-size: 0.7rem;">
                         ${localStorage.getItem('QM_CUSTOM_CONFIG') ? '커스텀 서버' : '기본 서버'}
                     </span>
                 </div>
-                <div style="background: rgba(0,0,0,0.2); padding: 10px; border-radius: 8px; margin-bottom: 1rem; font-size: 0.8rem;">
-                    <div style="color: var(--text-dim); margin-bottom: 4px;">현재 연결된 프로젝트:</div>
+                <div style="background: rgba(0,0,0,0.2); padding: 12px; border-radius: 12px; margin-bottom: 1rem; font-size: 0.85rem;">
+                    <div style="color: var(--text-dim); margin-bottom: 6px;">현재 연결된 프로젝트:</div>
                     <code style="color: var(--primary); font-weight: 700;">${(firebase.apps.length > 0) ? firebase.app().options.projectId : '연결 중...'}</code>
                 </div>
-                <p style="font-size: 0.8rem; color: var(--text-dim); margin-bottom: 1rem;">본인의 Firebase 프로젝트 키를 입력하여 서버를 교체할 수 있습니다.</p>
-                <textarea id="input-fb-config" class="quest-input" style="width: 100%; height: 100px; font-family: monospace; font-size: 0.75rem;" placeholder='{"apiKey": "...", "authDomain": "...", ...}'></textarea>
-                <div style="display: flex; gap: 8px; margin-top: 10px;">
-                    <button class="btn btn-primary btn-sm" id="btn-save-fb" style="flex: 1;">설정 저장 및 재시작</button>
-                    <button class="btn-reset-action btn-sm" id="btn-reset-fb"><i data-lucide="refresh-ccw"></i> 초기화</button>
+                <p style="font-size: 0.85rem; color: var(--text-dim); margin-bottom: 1rem;">본인의 Firebase 프로젝트 키를 입력하여 서버를 교체할 수 있습니다.</p>
+                <textarea id="input-fb-config" class="quest-input" style="width: 100%; height: 120px; font-family: monospace; font-size: 0.8rem; padding: 15px;" placeholder='{"apiKey": "...", "authDomain": "...", ...}'></textarea>
+                <div style="display: flex; gap: 12px; margin-top: 20px;">
+                    <button class="btn btn-primary btn-sm" id="btn-save-fb" style="flex: 1; padding: 12px;">설정 저장 및 재시작</button>
+                    <button class="btn-reset-action btn-sm" id="btn-reset-fb" style="padding: 12px;"><i data-lucide="refresh-ccw"></i> 초기화</button>
                 </div>
             </div>
 
             <!-- 위험 구역 -->
             <div class="settings-card danger-zone">
-                <h3 style="color: #f43f5e; margin-bottom: 0.5rem;"><i data-lucide="alert-circle"></i> 위험 구역</h3>
-                <div style="display: flex; flex-direction: column; gap: 20px;">
+                <h3 style="color: #f43f5e; margin-bottom: 0.8rem;"><i data-lucide="alert-circle"></i> 위험 구역</h3>
+                <div style="display: flex; flex-direction: column; gap: 24px;">
                     <div>
                         <div style="font-weight: 700; font-size: 1.1rem; color: var(--text-bright); margin-bottom: 8px;">전체 데이터 초기화</div>
                         <div style="font-size: 0.9rem; color: var(--text-dim); line-height: 1.6; max-width: 500px;">
@@ -1077,8 +1274,43 @@ function renderSettings() {
                     </div>
                 </div>
             </div>
+
+            <!-- 자동 백업 복구 (비상용) -->
+            <div class="settings-card" style="border-color: rgba(59, 130, 246, 0.2); background: rgba(59, 130, 246, 0.03);">
+                <h3><i data-lucide="life-buoy"></i> 비상 자동 백업 복구</h3>
+                <p style="font-size: 0.8rem; color: var(--text-dim); margin-bottom: 1rem;">시스템이 12시간마다 자동으로 생성한 백업입니다. 데이터 유실 시에만 사용하세요.</p>
+                <div id="auto-backup-list" class="flex-row" style="gap: 10px; flex-wrap: wrap;">
+                    <!-- 자동 백업 목록 동적 생성 -->
+                </div>
+            </div>
         </div>
     `;
+    renderAutoBackupList();
+    
+    // 로컬 저장소 정보 업데이트
+    const infoEl = document.getElementById('local-storage-info');
+    if (infoEl) {
+        const questCount = state.quests.length;
+        const historyCount = Object.keys(state.history).length;
+        const noteCount = (state.notes || []).length;
+        const todoCount = (state.todos || []).length;
+        const screenshotCount = (state.screenshots || []).length;
+        const lastSave = state.updatedAt ? new Date(state.updatedAt).toLocaleString() : '기록 없음';
+        
+        // 대략적인 용량 계산 (UTF-16 기준 문자당 2바이트)
+        const dataStr = JSON.stringify(state);
+        const kb = Math.round((dataStr.length * 2) / 1024);
+        
+        infoEl.innerHTML = `
+            <div>• 등록된 숙제: ${questCount}개</div>
+            <div>• 히스토리 기록: ${historyCount}개</div>
+            <div>• 메모/할 일: ${noteCount}/${todoCount}개</div>
+            <div>• 스크린샷: ${screenshotCount}장</div>
+            <div>• 현재 사용량: ~${kb} KB</div>
+            <div style="margin-top:4px; color:var(--primary); font-weight:600;">마지막 저장: ${lastSave}</div>
+        `;
+    }
+    
     if (window.lucide) lucide.createIcons();
 }
 
@@ -1092,8 +1324,11 @@ function renderDashboard() {
     if (!daily || !weekly) return;
 
     if (filter) {
-        filter.innerHTML = `<option value="전체">모든 게임</option>` + 
-                          state.games.map(g => `<option value="${g}" ${g === state.activeGame ? 'selected' : ''}>${g}</option>`).join('');
+        if (state.games.length === 0) {
+            filter.innerHTML = '<option value="">등록된 탭 없음</option>';
+        } else {
+            filter.innerHTML = state.games.map(g => `<option value="${g}" ${g === state.activeGame ? 'selected' : ''}>${g}</option>`).join('');
+        }
     }
 
     const targetDate = state.viewDate || getTodayStr();
@@ -1101,7 +1336,7 @@ function renderDashboard() {
 
     // 해당 날짜에 활성화된 숙제 필터링
     const filteredQuests = state.quests.filter(q => {
-        if (state.activeGame !== '전체' && q.game !== state.activeGame) return false;
+        if (q.game !== state.activeGame) return false;
         return isQuestActiveOnDate(q, targetDate);
     });
     
@@ -1340,7 +1575,7 @@ function updateStats() {
     
     // 현재 필터와 날짜에 맞는 숙제들 추출
     let visible = state.quests.filter(q => {
-        if (state.activeGame !== '전체' && q.game !== state.activeGame) return false;
+        if (q.game !== state.activeGame) return false;
         return isQuestActiveOnDate(q, targetDate);
     });
 
@@ -1531,7 +1766,10 @@ function setupEventListeners() {
                 state.quests = state.quests.filter(q => q.game !== name);
                 state.games = state.games.filter(g => g !== name);
                 if (state.gameIcons) delete state.gameIcons[name];
-                render(); save();
+                if (state.activeGame === name) {
+                    state.activeGame = state.games.length > 0 ? state.games[0] : '';
+                }
+                render(); save(); 
             }
         }
         if (target.id === 'btn-clear-all') {
@@ -1609,12 +1847,10 @@ function setupEventListeners() {
             }
         }
         if (target.id === 'btn-export-json') {
+            const { calendarDate, backups, user, ...toExport } = state;
             const data = {
-                quests: state.quests,
-                history: state.history,
-                games: state.games,
-                appTitle: state.appTitle,
-                backups: state.backups
+                ...toExport,
+                backups: state.backups // 백업도 포함하려면 유지
             };
             const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
             const url = URL.createObjectURL(blob);
@@ -1653,13 +1889,23 @@ function setupEventListeners() {
                     try {
                         const imported = JSON.parse(event.target.result);
                         if (confirm("파일에서 데이터를 불러올까요? 현재 데이터는 덮어씌워집니다.")) {
-                            state = { ...state, ...imported };
-                            render(); save();
+                            // 백업본이 있다면 합치거나 덮어씌움
+                            const { calendarDate, user, ...rest } = imported;
+                            state = { ...state, ...rest };
+                            
+                            // 노트가 문자열이면 배열로 변환
+                            if (typeof state.notes === 'string') {
+                                state.notes = [{ id: Date.now(), title: '불러온 메모', content: state.notes, date: new Date().toISOString() }];
+                            }
+                            
+                            addLog('info', '파일로부터 데이터를 성공적으로 불러왔습니다.');
+                            render(); save(true); // 동기화 액션으로 저장
                             showToast("데이터를 성공적으로 불러왔습니다.", "info");
                         }
                     } catch (err) {
                         showToast("유효하지 않은 파일 형식입니다.");
                     }
+                    e.target.value = ''; // 초기화
                 };
                 reader.readAsText(file);
             };
@@ -1674,6 +1920,7 @@ function setupEventListeners() {
         else if (id === 'nav-games') state.currentView = 'games';
         else if (id === 'nav-notes') state.currentView = 'notes';
         else if (id === 'nav-gallery') state.currentView = 'gallery';
+        else if (id === 'nav-todo') state.currentView = 'todo';
         else if (id === 'nav-log') state.currentView = 'log';
         else if (id === 'nav-settings') state.currentView = 'settings';
         render();
@@ -1684,6 +1931,7 @@ function setupEventListeners() {
             if (name && !state.games.includes(name)) { 
                 state.games.push(name); 
                 addLog('add', `새 탭 추가됨: ${name}`);
+                if (!state.activeGame) state.activeGame = name;
                 render(); save(); 
             }
         }
@@ -1694,6 +1942,21 @@ function setupEventListeners() {
         if (target.id === 'btn-sync') await syncCloud();
         if (target.id === 'add-quest-btn') { document.getElementById('modal-container').classList.remove('hidden'); renderForm(); }
         if (target.id === 'close-modal') document.getElementById('modal-container').classList.add('hidden');
+        if (target.id === 'btn-add-todo') {
+            const title = prompt("할 일 내용을 입력하세요:");
+            if (title) {
+                if (!state.todos) state.todos = [];
+                const newTodo = { 
+                    id: Date.now(), 
+                    title, 
+                    completed: false,
+                    createdAt: Date.now() 
+                };
+                state.todos.push(newTodo);
+                addLog('add', `새 일회용 숙제 추가됨: ${title}`);
+                save(); renderTodo();
+            }
+        }
     });
 
     document.addEventListener('change', (e) => {
@@ -1710,10 +1973,26 @@ function renderForm(initialDate, editQuest = null) {
     
     body.innerHTML = `
         <form id="quest-form">
-            <div class="form-group"><label>날짜 선택</label><input type="date" id="in-date" value="${defaultDate}"></div>
-            <div class="form-group"><label>숙제 내용</label><input type="text" id="in-title" value="${editQuest ? editQuest.title : ''}" placeholder="예: 숙제 이름" required></div>
-            <div class="form-group"><label>게임 선택</label><select id="in-game">${state.games.map(g => `<option value="${g}" ${editQuest && editQuest.game === g ? 'selected' : ''}>${g}</option>`).join('')}<option value="_new">+ 추가</option></select></div>
-            <div class="form-group"><label>반복 주기</label>
+            <div class="form-row">
+                <div class="form-group flex-1">
+                    <label><i data-lucide="calendar-days"></i> 시작일 (적용일)</label>
+                    <input type="date" id="in-date" value="${defaultDate}">
+                </div>
+                <div class="form-group flex-1" id="enddate-input" style="${editQuest && editQuest.type === 'once' ? 'display: none;' : 'display: block;'}">
+                    <label><i data-lucide="calendar-x"></i> 반복 종료일 <span class="label-hint">(선택)</span></label>
+                    <input type="date" id="in-enddate" value="${editQuest && editQuest.endDate ? editQuest.endDate : ''}">
+                </div>
+            </div>
+            <div class="form-group">
+                <label><i data-lucide="type"></i> 숙제 내용</label>
+                <input type="text" id="in-title" value="${editQuest ? editQuest.title : ''}" placeholder="예: 숙제 이름" required>
+            </div>
+            <div class="form-group">
+                <label><i data-lucide="gamepad-2"></i> 게임 선택</label>
+                <select id="in-game">${state.games.map(g => `<option value="${g}" ${editQuest && editQuest.game === g ? 'selected' : ''}>${g}</option>`).join('')}<option value="_new">+ 추가</option></select>
+            </div>
+            <div class="form-group">
+                <label><i data-lucide="refresh-cw"></i> 반복 주기</label>
                 <select id="in-type" onchange="
                     document.getElementById('interval-input').style.display = this.value === 'interval' ? 'block' : 'none';
                     document.getElementById('enddate-input').style.display = this.value === 'once' ? 'none' : 'block';
@@ -1726,11 +2005,8 @@ function renderForm(initialDate, editQuest = null) {
                 </select>
             </div>
             <div class="form-group" id="interval-input" style="${editQuest && editQuest.type === 'interval' ? 'display: block;' : 'display: none;'}">
-                <label>반복 일수 (N)</label><input type="number" id="in-interval" value="${editQuest ? editQuest.interval : 2}" min="1">
-            </div>
-            <div class="form-group" id="enddate-input" style="${editQuest && editQuest.type === 'once' ? 'display: none;' : 'display: block;'}">
-                <label>반복 종료일 <span style="font-size:0.7rem; color:var(--text-dim); font-weight:400;">(선택) 이 날짜 이후 자동 중단</span></label>
-                <input type="date" id="in-enddate" value="${editQuest && editQuest.endDate ? editQuest.endDate : ''}">
+                <label><i data-lucide="hash"></i> 반복 일수 (N)</label>
+                <input type="number" id="in-interval" value="${editQuest ? editQuest.interval : 2}" min="1">
             </div>
             <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 1rem;">${editQuest ? '수정 완료' : '숙제 등록'}</button>
         </form>
@@ -1771,6 +2047,7 @@ function renderForm(initialDate, editQuest = null) {
         document.getElementById('modal-container').classList.add('hidden');
         render(); save();
     };
+    if (window.lucide) lucide.createIcons();
 }
 
 function addLog(action, detail) {
@@ -1887,5 +2164,84 @@ window.updateSiteIcon = function(input) {
         reader.readAsDataURL(file);
     }
 };
+
+// --- 자동 백업 로직 ---
+function checkAutoBackup() {
+    const key = getAutoBackupKey();
+    const lastAutoTime = localStorage.getItem(key + '_TIME');
+    const now = Date.now();
+    const twelveHours = 12 * 60 * 60 * 1000;
+
+    if (!lastAutoTime || (now - parseInt(lastAutoTime)) > twelveHours) {
+        performAutoBackup();
+    }
+}
+
+function performAutoBackup() {
+    const key = getAutoBackupKey();
+    let autoBackups = [];
+    try {
+        const saved = localStorage.getItem(key);
+        if (saved) autoBackups = JSON.parse(saved);
+    } catch (e) {}
+
+    const { calendarDate, backups, user, ...toBackup } = state;
+    const newBackup = {
+        id: Date.now(),
+        date: new Date().toLocaleString('ko-KR'),
+        ...JSON.parse(JSON.stringify(toBackup))
+    };
+
+    autoBackups.unshift(newBackup);
+    if (autoBackups.length > 3) autoBackups = autoBackups.slice(0, 3); // 최신 3개만 유지
+
+    localStorage.setItem(key, JSON.stringify(autoBackups));
+    localStorage.setItem(key + '_TIME', Date.now().toString());
+    console.log("Auto-backup completed.");
+}
+
+function renderAutoBackupList() {
+    const container = document.getElementById('auto-backup-list');
+    if (!container) return;
+
+    const key = getAutoBackupKey();
+    let autoBackups = [];
+    try {
+        const saved = localStorage.getItem(key);
+        if (saved) autoBackups = JSON.parse(saved);
+    } catch (e) {}
+
+    if (autoBackups.length === 0) {
+        container.innerHTML = '<p class="empty-msg-sm">아직 자동 백업이 없습니다.</p>';
+        return;
+    }
+
+    container.innerHTML = autoBackups.map((b, idx) => `
+        <button class="btn btn-sm" style="background: rgba(255,255,255,0.05); border: 1px solid var(--border); color: var(--text-dim);" 
+                onclick="restoreAutoBackup(${idx})">
+            <i data-lucide="history" style="width: 12px; margin-right: 4px;"></i> ${b.date.split(' ').slice(1).join(' ')} 복구
+        </button>
+    `).join('');
+}
+
+window.restoreAutoBackup = function(idx) {
+    const key = getAutoBackupKey();
+    try {
+        const autoBackups = JSON.parse(localStorage.getItem(key));
+        const b = autoBackups[idx];
+        if (confirm(`[${b.date}] 자동 백업으로 복구할까요?\n현재 데이터가 덮어씌워집니다.`)) {
+            state.quests = b.quests;
+            state.history = b.history;
+            state.games = b.games;
+            state.appTitle = b.appTitle || state.appTitle;
+            state.todos = b.todos || [];
+            addLog('backup', `자동 백업 복구 완료 (${b.date})`);
+            save(); render();
+            showToast("자동 백업에서 복구되었습니다.", "info");
+        }
+    } catch (e) {
+        showToast("복구 중 오류가 발생했습니다.");
+    }
+}
 
 
