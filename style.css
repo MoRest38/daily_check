@@ -463,16 +463,22 @@ body {
 }
 
 .form-row {
-    display: flex;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
     gap: 1.25rem;
     margin-bottom: 1.5rem;
 }
 
-@media (max-width: 500px) {
+@media (max-width: 600px) {
     .form-row {
-        flex-direction: column;
+        grid-template-columns: 1fr;
         gap: 1rem;
     }
+}
+
+.form-group input[type="date"] {
+    min-width: 0;
+    width: 100%;
 }
 
 .flex-1 {
@@ -490,16 +496,25 @@ body {
 .form-group select {
     width: 100%;
     padding: 0.875rem 1rem;
-    background: #1e293b; /* 배경색 명시 */
+    background: #1e293b;
     border: 1px solid rgba(255, 255, 255, 0.2);
     border-radius: var(--radius-md);
     color: #ffffff;
     font-size: 1rem;
-    appearance: none; /* 브라우저 기본 스타일 제거 */
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='white'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E");
     background-repeat: no-repeat;
     background-position: right 1rem center;
     background-size: 1rem;
+}
+
+/* 날짜 입력창 특수 스타일 리셋 (삼성/웹킷 브라우저 대응) */
+.form-group input[type="date"]::-webkit-inner-spin-button,
+.form-group input[type="date"]::-webkit-calendar-picker-indicator {
+    background: transparent;
+    cursor: pointer;
 }
 
 .form-group select option {

@@ -198,8 +198,8 @@ function setupRealtimeSync() {
                     save(true); // 동기화 액션으로 저장하여 알림 방지
                 }
                 
-                // 로컬 스토리지 업데이트
-                localStorage.setItem(getStorageKey(), JSON.stringify(toSync));
+                // 로컬 스토리지 업데이트 (로그와 같은 로컬 전용 데이터 유지)
+                localStorage.setItem(getStorageKey(), JSON.stringify({ ...toSync, logs: state.logs }));
                 localStorage.setItem(getBackupKey(), JSON.stringify(state.backups));
                 
                 render();
