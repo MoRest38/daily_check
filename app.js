@@ -183,7 +183,7 @@ function setupRealtimeSync() {
             const cloud = doc.data();
             if ((cloud.updatedAt || 0) > (state.updatedAt || 0)) {
                 console.log("Cloud update detected. Syncing...");
-                const { user, calendarDate, backups, logs, ...toSync } = cloud;
+                const { user, calendarDate, backups, logs, screenshots, ...toSync } = cloud;
                 state = { 
                     ...state, 
                     ...toSync
@@ -210,6 +210,42 @@ function setupRealtimeSync() {
     }, err => {
         console.warn("Real-time sync restricted.");
     });
+
+    // 갤러리(스크린샷) 실시간 동기화 및 마이그레이션 (보안 규칙 수정 완료됨)
+    if (!window.screenshotsListener) {
+        window.screenshotsListener = db.collection('users').doc(state.user.uid).collection('screenshots').onSnapshot(snapshot => {
+            if (!state.screenshots) state.screenshots = [];
+            let changed = false;
+            
+            const cloudIds = [];
+            snapshot.forEach(doc => {
+                const data = doc.data();
+                cloudIds.push(data.id);
+                const exists = state.screenshots.find(s => s.id === data.id);
+                if (!exists) {
+                    state.screenshots.push(data);
+                    changed = true;
+                } else if (exists.data !== data.data) {
+                    exists.data = data.data;
+                    changed = true;
+                }
+            });
+
+            // 클라우드에서 삭제된 것 로컬 반영
+            const oldLen = state.screenshots.length;
+            state.screenshots = state.screenshots.filter(s => cloudIds.includes(s.id));
+            if (state.screenshots.length !== oldLen) changed = true;
+
+            // 로컬 전용 데이터 클라우드로 마이그레이션
+            const localOnly = state.screenshots.filter(s => !cloudIds.includes(s.id));
+            localOnly.forEach(s => uploadScreenshotCloud(s));
+            
+            if (changed) {
+                save(true);
+                if (state.currentView === 'gallery') renderGallery();
+            }
+        });
+    }
 }
 
 async function syncCloud() {
@@ -220,22 +256,32 @@ async function syncCloud() {
 async function saveCloud() {
     if (!state.user || !db) return;
     try {
-        // 백업과 로그를 제외한 모든 데이터(압축된 스크린샷 포함)를 메인 문서에 저장
-        const { user, calendarDate, backups, logs, ...toSave } = state;
+        // 스크린샷은 하위 컬렉션에서 별도 관리하므로 메인 문서에서는 제외 (덮어쓰기 방지)
+        const { user, calendarDate, backups, logs, screenshots, ...toSave } = state;
         await db.collection('users').doc(state.user.uid).set(toSave, { merge: true });
     } catch (e) { 
         console.warn("Cloud save failed:", e);
         if (e.code === 'permission-denied') {
             showToast("클라우드 저장 권한이 없습니다.", "error");
-        } else if (e.message.includes("limit")) {
-            showToast("데이터 용량이 너무 큽니다. 스크린샷을 줄여주세요.", "warning");
+        } else if (e.message && e.message.includes("limit")) {
+            showToast("데이터 용량 초과 (1MB 제한).", "warning");
         }
     }
 }
 
-// 개별 업로드 함수는 이제 사용하지 않음 (메인 문서에 통합)
-async function uploadScreenshotCloud(s) { }
-async function deleteScreenshotCloud(id) { }
+async function uploadScreenshotCloud(s) {
+    if (!state.user || !db) return;
+    try {
+        await db.collection('users').doc(state.user.uid).collection('screenshots').doc(String(s.id)).set(s);
+    } catch (e) { console.error("Upload failed", e); }
+}
+
+async function deleteScreenshotCloud(id) {
+    if (!state.user || !db) return;
+    try {
+        await db.collection('users').doc(state.user.uid).collection('screenshots').doc(String(id)).delete();
+    } catch (e) { }
+}
 
 // --- 5. Core Logic ---
 function save(isSyncAction = false) {
