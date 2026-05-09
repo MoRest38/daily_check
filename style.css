@@ -3003,3 +3003,37 @@ textarea {
     color: var(--text-dim);
 }
 
+/* Quest Notes Styling */
+.quest-notes-preview {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    margin-top: 4px;
+    margin-bottom: 4px;
+    line-height: 1.4;
+    white-space: pre-wrap;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.hist-info {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.hist-title {
+    font-weight: 600;
+}
+
+.hist-notes {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    line-height: 1.4;
+    white-space: pre-wrap;
+    background: rgba(255, 255, 255, 0.03);
+    padding: 6px 10px;
+    border-radius: 6px;
+    border-left: 2px solid var(--primary);
+}

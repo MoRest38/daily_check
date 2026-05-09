@@ -402,14 +402,15 @@ function syncQuestsToHistoryFromDate(startDateStr = null) {
                 const exists = h.quests.find(hq => hq.id === q.id);
                 if (!exists) {
                     h.quests.push({ 
-                        id: q.id, title: q.title, game: q.game, 
+                        id: q.id, title: q.title, game: q.game, notes: q.notes || '',
                         completed: isCompletedInCycle(q, dateStr) 
                     });
                     hasChanged = true;
                 } else {
-                    if (exists.title !== q.title || exists.game !== q.game) {
+                    if (exists.title !== q.title || exists.game !== q.game || exists.notes !== q.notes) {
                         exists.title = q.title;
                         exists.game = q.game;
+                        exists.notes = q.notes || '';
                         hasChanged = true;
                     }
                     const comp = isCompletedInCycle(q, dateStr);
@@ -1408,6 +1409,7 @@ function renderDashboard() {
             </div>
             <div class="quest-content" data-action="edit-quest" data-id="${q.id}">
                 <div class="quest-title">${q.title}</div>
+                ${q.notes ? `<div class="quest-notes-preview">${q.notes}</div>` : ''}
                 <div class="quest-meta">
                     <div class="quest-tab-info">
                         ${gameIcon ? `<img src="${gameIcon}" class="quest-tab-icon">` : ''}
@@ -1593,7 +1595,10 @@ function showHistoryDetail(dateStr) {
     }
     list.innerHTML = h.quests.map((q, idx) => `
         <div class="history-item">
-            <div class="hist-info"><span>[${q.game}] ${q.title}</span></div>
+            <div class="hist-info">
+                <div class="hist-title"><span>[${q.game}] ${q.title}</span></div>
+                ${q.notes ? `<div class="hist-notes">${q.notes}</div>` : ''}
+            </div>
             <div class="hist-actions">
                 <span class="hist-status ${q.completed ? 'done' : 'undone'}" 
                       style="cursor: pointer;" data-action="toggle-hist" data-date="${dateStr}" data-idx="${idx}">
@@ -1697,6 +1702,7 @@ window.showRemainingList = function() {
                             ${gameIcon ? `<img src="${gameIcon}" class="remains-item-icon">` : '<div class="remains-item-icon-placeholder"></div>'}
                             <div class="remains-item-info">
                                 <div class="remains-item-title">${q.title}</div>
+                                ${q.notes ? `<div class="remains-item-notes" style="font-size: 0.7rem; color: var(--text-muted); margin-top: 2px;">${q.notes}</div>` : ''}
                                 <div class="remains-item-game">${q.game}</div>
                             </div>
                         </div>
@@ -2137,6 +2143,10 @@ function renderForm(initialDate, editQuest = null) {
                 <label><i data-lucide="hash"></i> 반복 일수 (N)</label>
                 <input type="number" id="in-interval" value="${editQuest ? editQuest.interval : 2}" min="1">
             </div>
+            <div class="form-group">
+                <label><i data-lucide="info"></i> 추가 정보 (상세 내용)</label>
+                <textarea id="in-notes" placeholder="기타 참고할 내용이나 상세한 숙제 방법을 적어주세요." style="width: 100%; height: 80px; padding: 10px; border-radius: 8px; background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.1); color: var(--text-bright); resize: none;">${editQuest && editQuest.notes ? editQuest.notes : ''}</textarea>
+            </div>
             <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 1rem;">${editQuest ? '수정 완료' : '숙제 등록'}</button>
         </form>
     `;
@@ -2159,6 +2169,7 @@ function renderForm(initialDate, editQuest = null) {
             game: game, 
             type: document.getElementById('in-type').value, 
             interval: document.getElementById('in-interval').value, 
+            notes: document.getElementById('in-notes').value,
             createdAt: selectedDate,
             endDate: endDateVal || null
         };
