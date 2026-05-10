@@ -197,37 +197,38 @@ function setupRealtimeSync() {
     unsubscribeSync = db.collection('users').doc(state.user.uid).onSnapshot(doc => {
         if (doc.exists) {
             const cloud = doc.data();
-            if ((cloud.updatedAt || 0) > (state.updatedAt || 0)) {
+            const cloudTime = cloud.updatedAt || 0;
+            const localTime = state.updatedAt || 0;
+            const cloudBackupCount = (cloud.backups || []).length;
+            const localBackupCount = (state.backups || []).length;
+
+            if (cloudTime > localTime || cloudBackupCount !== localBackupCount) {
                 console.log("Cloud update detected. Syncing...");
+                // 1. 기본 데이터 동기화
                 const { user, calendarDate, backups, screenshots, ...toSync } = cloud;
-                state = { 
-                    ...state, 
-                    ...toSync
-                };
+                state = { ...state, ...toSync };
                 
-                // 로그 병합 (클라우드 로그와 로컬 로그 중 최신 200개 유지)
+                // 2. 백업 리스트 동기화 (클라우드 데이터를 로컬에 덮어씀)
+                if (cloud.backups) {
+                    state.backups = cloud.backups;
+                }
+                
+                // 3. 로그 병합 (클라우드 로그와 로컬 로그 중 최신 200개 유지)
                 if (cloud.logs) {
                     const combinedLogs = [...(state.logs || []), ...cloud.logs];
                     const uniqueLogs = Array.from(new Map(combinedLogs.map(l => [l.id, l])).values());
                     state.logs = uniqueLogs.sort((a, b) => b.id - a.id).slice(0, 200);
                 }
                 
-                // 클라우드 데이터를 받자마자 즉시 전수 조사(청소) 실시
-                const cleaned = syncQuestsToHistoryFromDate();
-                
-                // 만약 청소된 내용이 있다면 서버에도 즉시 반영하여 '부활' 방지
-                if (cleaned) {
-                    console.log("History cleaned. Syncing back to server...");
-                    save(true); // 동기화 액션으로 저장하여 알림 방지
-                }
+                syncQuestsToHistoryFromDate();
                 
                 // 로컬 스토리지 업데이트
                 localStorage.setItem(getStorageKey(), JSON.stringify(toSync));
                 localStorage.setItem(getBackupKey(), JSON.stringify(state.backups));
                 
                 render();
-                const syncTime = new Date(cloud.updatedAt).toLocaleTimeString('ko-KR');
-                showToast(`클라우드 최신 데이터 동기화 (${syncTime})`, "info");
+                const syncTime = new Date(cloudTime).toLocaleTimeString('ko-KR');
+                showToast(`클라우드 동기화 완료 (${syncTime})`, "info");
             }
         }
     }, err => {
@@ -283,23 +284,47 @@ function setupRealtimeSync() {
     }
 }
 
-async function syncCloud() {
-    // 기존 syncCloud는 setupRealtimeSync가 대신하므로 비워두거나 초기 1회용으로 사용
-    setupRealtimeSync();
+async function syncData() {
+    if (!state.user || !db) return;
+    showToast("데이터를 강제 동기화 중...", "info");
+    try {
+        const doc = await db.collection('users').doc(state.user.uid).get();
+        if (doc.exists) {
+            const cloud = doc.data();
+            const { user, calendarDate, backups, screenshots, ...toSync } = cloud;
+            state = { ...state, ...toSync };
+            if (cloud.backups) {
+                state.backups = cloud.backups;
+                localStorage.setItem(getBackupKey(), JSON.stringify(state.backups));
+            }
+            state.updatedAt = cloud.updatedAt || Date.now();
+            localStorage.setItem(getStorageKey(), JSON.stringify(toSync));
+            render();
+            showToast("클라우드 데이터 강제 동기화 성공", "info");
+        }
+    } catch (e) {
+        showToast("동기화 실패", "error");
+    }
 }
 
 async function saveCloud() {
-    if (!state.user || !db) return;
     try {
-        // 스크린샷은 하위 컬렉션에서 별도 관리하므로 메인 문서에서는 제외 (덮어쓰기 방지)
-        const { user, calendarDate, backups, screenshots, ...toSave } = state;
+        // 백업 데이터를 포함하여 전송 (단, 1MB 제한 주의)
+        const { user, calendarDate, screenshots, ...toSave } = state;
+        
+        // 용량 체크 (대략적)
+        const dataStr = JSON.stringify(toSave);
+        if (dataStr.length > 800000) { // 약 800KB 초과 시 경고
+            showToast("백업 데이터가 많아 클라우드 용량이 한계에 도달했습니다. 오래된 백업을 삭제해 주세요.", "warning");
+        }
+        
         await db.collection('users').doc(state.user.uid).set(toSave, { merge: true });
     } catch (e) { 
         console.warn("Cloud save failed:", e);
         if (e.code === 'permission-denied') {
             showToast("클라우드 저장 권한이 없습니다.", "error");
-        } else if (e.message && e.message.includes("limit")) {
-            showToast("데이터 용량 초과 (1MB 제한).", "warning");
+        } else if (e.message && e.message.includes("limit") || e.code === 'out-of-range') {
+            showToast("데이터 용량 초과 (1MB 제한). 수동 백업을 삭제한 후 다시 시도하세요.", "error");
         }
     }
 }
@@ -326,6 +351,9 @@ async function deleteScreenshotCloud(id) {
 
 // --- 5. Core Logic ---
 function save(isSyncAction = false) {
+    // 1. 클라우드 동기화 시도 (로컬 용량 문제와 무관하게 실행되도록 우선 호출)
+    saveCloud();
+
     try {
         // 사용자가 직접 수정하거나 리셋이 발생한 경우에만 시간을 새로 찍습니다.
         if (!isSyncAction) {
@@ -334,16 +362,15 @@ function save(isSyncAction = false) {
             showToast(`저장 완료 (${saveTime})`, "info");
         }
 
-        // 모든 중요 데이터를 포함하여 저장 (단, 용량이 큰 자동 백업 리스트 등은 메인 데이터에서 제외 권장)
+        // 모든 중요 데이터를 포함하여 저장
         const { calendarDate, backups, user, ...toSave } = state;
         localStorage.setItem(getStorageKey(), JSON.stringify(toSave));
         localStorage.setItem(getBackupKey(), JSON.stringify(state.backups));
-        saveCloud();
     } catch (e) {
         if (e.name === 'QuotaExceededError' || e.code === 22) {
-            showToast("저장 공간이 가득 찼습니다! 설정에서 오래된 백업이나 스크린샷을 삭제해 주세요.", "error");
+            showToast("로컬 저장 공간이 부족하여 기기에 저장하지 못했습니다! 클라우드 동기화는 유지되나, 설정에서 백업을 정리해 주세요.", "error");
         } else {
-            console.error("Save failed:", e);
+            console.error("Local save failed:", e);
         }
     }
 }
@@ -422,7 +449,7 @@ function syncQuestsToHistoryFromDate(startDateStr = null) {
                 const exists = h.quests.find(hq => hq.id === q.id);
                 if (!exists) {
                     h.quests.push({ 
-                        id: q.id, title: q.title, game: q.game, notes: q.notes || '',
+                        id: q.id, title: q.title, game: q.game,
                         completed: isCompletedInCycle(q, dateStr) 
                     });
                     hasChanged = true;
@@ -1212,6 +1239,7 @@ function renderSettings() {
                     <button class="btn btn-primary" id="btn-import-trigger" style="flex: 1">
                         <i data-lucide="download"></i> 파일에서 불러오기
                     </button>
+                    <input type="file" id="input-import-json" accept=".json" style="display: none;">
                 </div>
             </div>
 
@@ -2033,36 +2061,6 @@ function setupEventListeners() {
         if (target.id === 'btn-import-trigger') {
             document.getElementById('input-import-json').click();
         }
-        if (target.id === 'input-import-json') {
-            target.onchange = (e) => {
-                const file = e.target.files[0];
-                if (!file) return;
-                const reader = new FileReader();
-                reader.onload = (event) => {
-                    try {
-                        const imported = JSON.parse(event.target.result);
-                        if (confirm("파일에서 데이터를 불러올까요? 현재 데이터는 덮어씌워집니다.")) {
-                            // 백업본이 있다면 합치거나 덮어씌움
-                            const { calendarDate, user, ...rest } = imported;
-                            state = { ...state, ...rest };
-                            
-                            // 노트가 문자열이면 배열로 변환
-                            if (typeof state.notes === 'string') {
-                                state.notes = [{ id: Date.now(), title: '불러온 메모', content: state.notes, date: new Date().toISOString() }];
-                            }
-                            
-                            addLog('info', '파일로부터 데이터를 성공적으로 불러왔습니다.');
-                            render(); save(true); // 동기화 액션으로 저장
-                            showToast("데이터를 성공적으로 불러왔습니다.", "info");
-                        }
-                    } catch (err) {
-                        showToast("유효하지 않은 파일 형식입니다.");
-                    }
-                    e.target.value = ''; // 초기화
-                };
-                reader.readAsText(file);
-            };
-        }
 
     // --- 최우선 순위: 탭 전환 처리 ---
     const navItem = target.closest('.nav-item');
@@ -2114,6 +2112,33 @@ function setupEventListeners() {
 
     document.addEventListener('change', (e) => {
         if (e.target.id === 'game-filter') { state.activeGame = e.target.value; render(); }
+        
+        if (e.target.id === 'input-import-json') {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                try {
+                    const imported = JSON.parse(event.target.result);
+                    if (confirm("파일에서 데이터를 불러올까요? 현재 데이터는 덮어씌워집니다.")) {
+                        const { calendarDate, user, ...rest } = imported;
+                        state = { ...state, ...rest };
+                        
+                        if (typeof state.notes === 'string') {
+                            state.notes = [{ id: Date.now(), title: '불러온 메모', content: state.notes, date: formatDateLocal(new Date()) }];
+                        }
+                        
+                        addLog('info', '파일로부터 데이터를 성공적으로 불러왔습니다.');
+                        render(); save(true);
+                        showToast("데이터를 성공적으로 불러왔습니다.", "info");
+                    }
+                } catch (err) {
+                    showToast("유효하지 않은 파일 형식입니다.");
+                }
+                e.target.value = '';
+            };
+            reader.readAsText(file);
+        }
     });
 }
 
