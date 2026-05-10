@@ -55,7 +55,19 @@ function getAutoBackupKey() {
 let db = null;
 let isInitialized = false;
 
-// --- 3. Initialization ---
+// --- 3. Helpers ---
+const safeToDate = (val) => {
+    if (!val) return new Date(0);
+    if (val.toDate && typeof val.toDate === 'function') return val.toDate();
+    if (val instanceof Date) return new Date(val);
+    return new Date(val);
+};
+
+const formatDateLocal = (d) => {
+    const d2 = safeToDate(d);
+    return `${d2.getFullYear()}-${String(d2.getMonth() + 1).padStart(2, '0')}-${String(d2.getDate()).padStart(2, '0')}`;
+};
+
 window.onload = async () => {
     initFirebase();
     render(); 
@@ -314,18 +326,26 @@ async function deleteScreenshotCloud(id) {
 
 // --- 5. Core Logic ---
 function save(isSyncAction = false) {
-    // 사용자가 직접 수정하거나 리셋이 발생한 경우에만 시간을 새로 찍습니다.
-    if (!isSyncAction) {
-        state.updatedAt = Date.now();
-        const saveTime = new Date(state.updatedAt).toLocaleTimeString('ko-KR');
-        showToast(`저장 완료 (${saveTime})`, "info");
-    }
+    try {
+        // 사용자가 직접 수정하거나 리셋이 발생한 경우에만 시간을 새로 찍습니다.
+        if (!isSyncAction) {
+            state.updatedAt = Date.now();
+            const saveTime = new Date(state.updatedAt).toLocaleTimeString('ko-KR');
+            showToast(`저장 완료 (${saveTime})`, "info");
+        }
 
-    // 모든 중요 데이터를 포함하여 저장
-    const { calendarDate, backups, user, ...toSave } = state;
-    localStorage.setItem(getStorageKey(), JSON.stringify(toSave));
-    localStorage.setItem(getBackupKey(), JSON.stringify(state.backups));
-    saveCloud();
+        // 모든 중요 데이터를 포함하여 저장 (단, 용량이 큰 자동 백업 리스트 등은 메인 데이터에서 제외 권장)
+        const { calendarDate, backups, user, ...toSave } = state;
+        localStorage.setItem(getStorageKey(), JSON.stringify(toSave));
+        localStorage.setItem(getBackupKey(), JSON.stringify(state.backups));
+        saveCloud();
+    } catch (e) {
+        if (e.name === 'QuotaExceededError' || e.code === 22) {
+            showToast("저장 공간이 가득 찼습니다! 설정에서 오래된 백업이나 스크린샷을 삭제해 주세요.", "error");
+        } else {
+            console.error("Save failed:", e);
+        }
+    }
 }
 
 function loadLocal() {
@@ -449,7 +469,7 @@ function isQuestActiveOnDate(q, dateStr) {
     if (createdAt && typeof createdAt !== 'string') {
         try {
             const d = createdAt.toDate ? createdAt.toDate() : new Date(createdAt);
-            createdAt = d.toISOString().split('T')[0];
+            createdAt = formatDateLocal(d);
         } catch(e) { createdAt = getTodayStr(); }
     }
     if (!createdAt) createdAt = getTodayStr();
@@ -477,14 +497,8 @@ function checkResets() {
     // 만약 자정이 지나 날짜가 바뀌었다면 뷰 날짜도 자동 갱신
     if (state.lastResetDate !== todayStr && now.getHours() >= resetHour) {
         state.viewDate = todayStr;
-        state.lastResetDate = todayStr;
-        
-        state.quests.forEach(q => {
-            q.completed = false;
-        });
         
         render();
-        save();
     }
 
     let last = state.lastResetDate ? new Date(state.lastResetDate) : null;
@@ -519,7 +533,7 @@ function checkResets() {
 
     if (resetCount > 0 || last < todayReset) {
         updateHistoryToday();
-        state.lastResetDate = now.toISOString();
+        state.lastResetDate = todayStr;
         save();
         if (resetCount > 0) {
             showToast(`${resetCount}개의 숙제가 리셋되었습니다!`, "info");
@@ -580,7 +594,7 @@ function syncStatusAcrossHistory(q, baseDate, forcedState = null) {
             for (let i = 0; i < days; i++) {
                 const d = new Date(start);
                 d.setDate(d.getDate() + cycleStartOffset + i);
-                cycleDates.push(d.toISOString().split('T')[0]);
+                cycleDates.push(formatDateLocal(d));
             }
         } else if (q.type === 'interval') {
             const interval = parseInt(q.interval) || 1;
@@ -589,7 +603,7 @@ function syncStatusAcrossHistory(q, baseDate, forcedState = null) {
             for (let i = 0; i < interval; i++) {
                 const d = new Date(start);
                 d.setDate(d.getDate() + cycleStartOffset + i);
-                cycleDates.push(d.toISOString().split('T')[0]);
+                cycleDates.push(formatDateLocal(d));
             }
         } else {
             cycleDates.push(baseDate);
@@ -626,9 +640,9 @@ function syncStatusAcrossHistory(q, baseDate, forcedState = null) {
 function isSameCycle(q, d1, d2) {
     if (q.type === 'daily' || q.type === 'once') return d1 === d2;
     
-    const date1 = new Date(d1); date1.setHours(0,0,0,0);
-    const date2 = new Date(d2); date2.setHours(0,0,0,0);
-    const start = q.createdAt ? new Date(q.createdAt) : new Date(0); start.setHours(0,0,0,0);
+    const date1 = safeToDate(d1); date1.setHours(0,0,0,0);
+    const date2 = safeToDate(d2); date2.setHours(0,0,0,0);
+    const start = q.createdAt ? safeToDate(q.createdAt) : new Date(0); start.setHours(0,0,0,0);
 
     if (q.type === 'weekly') return isSameWeek(date1, date2);
 
@@ -649,7 +663,11 @@ function isSameCycle(q, d1, d2) {
 }
 
 function isCompletedInCycle(q, dateStr) {
-    // 해당 날짜의 히스토리가 이미 있다면 그 기록을 우선함
+    const today = getTodayStr();
+    // 오늘 날짜를 보고 있다면 메모리 상의 마스터 상태를 우선하여 즉각적인 피드백 제공
+    if (dateStr === today) return q.completed;
+
+    // 과거 기록의 경우 히스토리를 먼저 조회
     const h = state.history[dateStr];
     if (h) {
         const hq = h.quests.find(x => x.id === q.id);
@@ -662,8 +680,8 @@ function isCompletedInCycle(q, dateStr) {
 }
 
 function isSameWeek(d1, d2) {
-    const w1 = new Date(d1); w1.setHours(0,0,0,0);
-    const w2 = new Date(d2); w2.setHours(0,0,0,0);
+    const w1 = safeToDate(d1); w1.setHours(0,0,0,0);
+    const w2 = safeToDate(d2); w2.setHours(0,0,0,0);
     const diff1 = (w1.getDay() === 0 ? 6 : w1.getDay() - 1);
     const diff2 = (w2.getDay() === 0 ? 6 : w2.getDay() - 1);
     w1.setDate(w1.getDate() - diff1);
@@ -838,7 +856,7 @@ function renderStats() {
     for (let i = 29; i >= 0; i--) {
         const d = new Date();
         d.setDate(d.getDate() - i);
-        days.push(d.toISOString().split('T')[0]);
+        days.push(formatDateLocal(d));
     }
 
     // 통계 계산
@@ -1443,7 +1461,7 @@ function renderDashboard() {
 function changeDashboardDate(offset) {
     const d = new Date(state.viewDate);
     d.setDate(d.getDate() + offset);
-    state.viewDate = d.toISOString().split('T')[0];
+    state.viewDate = formatDateLocal(d);
     render();
 }
 
@@ -1732,7 +1750,7 @@ function renderMiniCalendarStrip() {
     for (let i = -3; i <= 3; i++) {
         const d = new Date(targetDate);
         d.setDate(d.getDate() + i);
-        const dateStr = d.toISOString().split('T')[0];
+        const dateStr = formatDateLocal(d);
         const isToday = dateStr === todayStr;
         const isActive = dateStr === activeDateStr;
         
@@ -2325,7 +2343,8 @@ function performAutoBackup() {
         if (saved) autoBackups = JSON.parse(saved);
     } catch (e) {}
 
-    const { calendarDate, backups, user, ...toBackup } = state;
+    // 자동 백업 시에는 용량을 많이 차지하는 스크린샷과 로그를 제외합니다.
+    const { calendarDate, backups, user, screenshots, logs, ...toBackup } = state;
     const newBackup = {
         id: Date.now(),
         date: new Date().toLocaleString('ko-KR'),
@@ -2335,9 +2354,14 @@ function performAutoBackup() {
     autoBackups.unshift(newBackup);
     if (autoBackups.length > 3) autoBackups = autoBackups.slice(0, 3); // 최신 3개만 유지
 
-    localStorage.setItem(key, JSON.stringify(autoBackups));
-    localStorage.setItem(key + '_TIME', Date.now().toString());
-    console.log("Auto-backup completed.");
+    try {
+        localStorage.setItem(key, JSON.stringify(autoBackups));
+        localStorage.setItem(key + '_TIME', Date.now().toString());
+        console.log("Auto-backup completed.");
+    } catch (e) {
+        console.warn("Auto-backup failed due to storage limits.");
+        // 자동 백업 실패는 사용자에게 치명적이지 않으므로 콘솔 경고만 남김
+    }
 }
 
 function renderAutoBackupList() {
